@@ -2,6 +2,6 @@
 
 ToDo:
 
-- [ ] Add logs collection and monitoring (prob. using Grafana?)
-- [ ] Implement discovery of user stacks
 - [ ] Implement deploy of user stacks
+- [ ] Add support for envs
+- [ ] Implement backup / restore

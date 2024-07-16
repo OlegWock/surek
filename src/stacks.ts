@@ -1,19 +1,23 @@
+import fg from 'fast-glob';
 import { execDockerCompose, getPathForPatchedComposeFile, readComposeFile, transformComposeFile, writeComposeFile } from "@src/compose";
-import { loadStackConfig, SurekConfig } from "@src/config";
-import { DATA_DIR } from "@src/const";
+import { loadStackConfig, StackConfig, SurekConfig } from "@src/config";
+import { DATA_DIR, STACKS_DIR } from "@src/const";
 import { log } from "@src/logger";
 import { exit } from "@src/utils";
 import { existsSync, mkdirSync } from "node:fs";
 import { dirname, join, resolve } from "node:path";
 
-export const deployStack = async (configPath: string, surekConfig: SurekConfig) => {
+export const deployStackByConfigPath = (configPath: string, surekConfig: SurekConfig) => {
     log.info(`Loading Surek stack config ${configPath}`);
     const config = loadStackConfig(configPath);
+    return deployStack(config, dirname(configPath), surekConfig);
+};
+
+export const deployStack = async (config: StackConfig, sourceDir: string, surekConfig: SurekConfig) => {
     if (config.source.type === 'github') {
         throw new Error('Not implemented yet');
     }
 
-    const sourceDir = dirname(configPath);
     const projectDir = join(DATA_DIR, "projects", config.name);
     mkdirSync(projectDir, { recursive: true });
 
@@ -23,7 +27,7 @@ export const deployStack = async (configPath: string, surekConfig: SurekConfig) 
     }
     const composeFile = readComposeFile(composeFilePath);
     const transformed = transformComposeFile(composeFile, config, surekConfig);
-    const patchedFilePath = getPathForPatchedComposeFile(configPath);
+    const patchedFilePath = getPathForPatchedComposeFile(config);
     writeComposeFile(patchedFilePath, transformed);
     log.info(`Saved patched compose file at ${patchedFilePath}`);
     log.info(`Starting containers...`)
@@ -36,9 +40,13 @@ export const deployStack = async (configPath: string, surekConfig: SurekConfig) 
     log.info(`Containers started`);
 };
 
-export const stopStack = async (configPath: string, silent = false) => {
-    const sourceDir = dirname(configPath);
-    const patchedComposeFile = getPathForPatchedComposeFile(configPath);
+export const stopStackByConfigPath = (configPath: string, silent = false) => {
+    const config = loadStackConfig(configPath);
+    return stopStack(config, dirname(configPath), silent);
+}
+
+export const stopStack = async (config: StackConfig, sourceDir: string, silent = false) => {
+    const patchedComposeFile = getPathForPatchedComposeFile(config);
     if (!existsSync(patchedComposeFile)) {
         if (silent) return;
         return exit(`Couldn't find compose file for this stack`);
@@ -49,4 +57,19 @@ export const stopStack = async (configPath: string, silent = false) => {
         projectFolder: sourceDir,
         command: 'stop',
     });
-}   
+    log.info(`Containers stopped`);
+};
+
+export const getAvailableStacks = () => {
+    const stacks = fg.sync('**/surek.stack.yml', { cwd: STACKS_DIR });
+    const validStacks = stacks.map(path => {
+        try {
+            const config = loadStackConfig(join(STACKS_DIR, path));
+            return { config, path: join(STACKS_DIR, path) };
+        } catch (err) {
+            return null;
+        }
+    }).filter(s => s !== null);
+
+    return Object.fromEntries(validStacks.map(s => [s.config.name, s]));
+}

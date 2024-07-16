@@ -35,7 +35,7 @@ export const transformComposeFile = (originalSpec: ComposeSpecification, config:
                 return;
             }
 
-            const descriptor = spec.volumes![name];
+            const descriptor = spec.volumes![name] ?? {};
             const preConfigured = Object.keys(descriptor).length;
             if (preConfigured) {
                 log.warn(`Volume ${name} is already pre-configured. This volume will be skipped on backup.`);
@@ -121,8 +121,7 @@ export const writeComposeFile = (path: string, content: ComposeSpecification) =>
     writeFileSync(path, text);
 };
 
-export const getPathForPatchedComposeFile = (configPath: string) => {
-    const config = loadStackConfig(configPath);
+export const getPathForPatchedComposeFile = (config: StackConfig) => {
     const projectDir = join(DATA_DIR, "projects", config.name);
     const patchedFilePath = join(projectDir, 'docker-compose.yml');
     return patchedFilePath;
@@ -152,8 +151,8 @@ export const execDockerCompose = ({ composeFile, projectFolder, command, options
         commandArgs.push(...args);
     }
 
-    console.log('Executing docker command');
-    console.log(`$ docker ${commandArgs.join(' ')}`);
+    log.info('Executing docker command');
+    log.info(`$ docker ${commandArgs.join(' ')}`);
     const childProcess = spawn('docker', commandArgs);
     childProcess.stdout.on('data', (data) => {
         process.stdout.write(data.toString());

@@ -21,6 +21,7 @@
     "cmd-ts": "^0.13.0",
     "dockerode": "^4.0.2",
     "dockerode-compose": "^1.4.0",
+    "fast-glob": "^3.3.2",
     "js-yaml": "^4.1.0",
     "signale": "^1.4.0",
     "tsx": "^4.16.2",
