@@ -1,0 +1,14 @@
+{
+    "extends": "@tsconfig/node18/tsconfig.json",
+    "compilerOptions": {
+        "resolveJsonModule": true,
+        "noImplicitAny": true,
+        "strictNullChecks": true,
+        "module": "ESNext",
+        "moduleResolution": "Node",
+        "baseUrl": ".",
+        "paths": {
+          "@src/*": ["./src/*"]
+        }
+    }
+  }
