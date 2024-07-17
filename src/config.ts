@@ -9,12 +9,22 @@ import { exit } from "@src/utils";
 import { log } from "@src/logger";
 import { PROJECT_ROOT } from "@src/const";
 
-export const zodToCamelCase = <T extends z.ZodTypeAny>(zod: T): ZodEffects<z.ZodTypeAny, CamelCasedPropertiesDeep<T['_output']>> => zod.transform((val) => camelcaseKeys(val, { deep: true }) as CamelCasedPropertiesDeep<T>)
+export const zodToCamelCase = <T extends z.ZodTypeAny>(zod: T): ZodEffects<z.ZodTypeAny, CamelCasedPropertiesDeep<T['_output']>> => {
+    return zod.transform((val) => {
+        return camelcaseKeys(val, {
+            deep: true,
+            stopPaths: ['env.shared', 'env.by_container']
+        }) as CamelCasedPropertiesDeep<T>;
+    });
+};
 
 const configSchema = zodToCamelCase(z.object({
     root_domain: z.string(),
     default_auth: z.string().refine((val) => typeof val !== 'string' || val.split(':').length === 2, {
         message: "Auth string should be in <user>:<password> format",
+    }).transform(auth => {
+        const [user, password] = auth.split(':');
+        return { user, password };
     }),
 }));
 
@@ -39,7 +49,6 @@ export const loadConfig = (): SurekConfig => {
     }
 };
 
-
 const stackConfigSchema = zodToCamelCase(z.object({
     name: z.string(),
     source: z.discriminatedUnion("type", [
@@ -56,7 +65,10 @@ const stackConfigSchema = zodToCamelCase(z.object({
             }),
         })
     ).optional().transform(v => v ?? []),
-    ignore_logs_from: z.array(z.string()).optional().transform(v => v ?? []),
+    env: z.object({
+        shared: z.array(z.string()).optional(),
+        by_container: z.record(z.string(), z.array(z.string())).optional(),
+    }).optional(),
     backup: z.object({
         exclude_volumes: z.array(z.string()).optional().transform(v => v ?? []),
     }).optional().default({}),
@@ -75,4 +87,11 @@ export const loadStackConfig = (path: string) => {
         log.error(validationError.toString());
         return exit();
     }
-}
+};
+
+export const exapndVariables = (val: string, config: SurekConfig) => {
+    return val.replaceAll('<root>', config.rootDomain)
+        .replaceAll('<default_auth>', config.defaultAuth.user + ':' + config.defaultAuth.password)
+        .replaceAll('<default_user>', config.defaultAuth.user)
+        .replaceAll('<default_password>', config.defaultAuth.password);
+};

@@ -1,13 +1,15 @@
 import { loadConfig } from '@src/config';
 import { version } from '../package.json' assert { type: "json" };
 import { command, subcommands, string, positional } from 'cmd-ts';
+import yaml from 'js-yaml';
 import Docker from 'dockerode';
-
 import { log } from '@src/logger';
 import { SUREK_NETWORK, SYSTEM_SERVICES_CONFIG, DEFAULT_SUREK_LABELS } from '@src/const';
 import { deployStack, deployStackByConfigPath, getAvailableStacks, stopStack, stopStackByConfigPath } from '@src/stacks';
 import { exit } from '@src/utils';
-import { dirname } from 'path';
+import { dirname, resolve } from 'path';
+import { existsSync } from 'node:fs';
+import { readComposeFile, transformComposeFile } from '@src/compose';
 
 const start = command({
     name: 'start',
@@ -81,6 +83,49 @@ const deploy = command({
     },
 });
 
+const validate = command({
+    name: 'validate',
+    description: `Validate stack config`,
+    args: {
+        stackName: positional({ type: string, displayName: 'stack name' }),
+    },
+    handler: async ({ stackName }) => {
+        const stacks = getAvailableStacks();
+        const stack = stacks[stackName];
+        if (!stack) {
+            return exit(`Unknown stack ${stackName}`);
+        }
+        log.info('Loaded stack config from', stack.path);
+        log.success('Config is valid');
+        log.debug(stack.config);
+    },
+});
+
+const view = command({
+    name: 'view',
+    description: `Output patched stack compose file`,
+    args: {
+        stackName: positional({ type: string, displayName: 'stack name' }),
+    },
+    handler: async ({ stackName }) => {
+        const config = loadConfig();
+        const stacks = getAvailableStacks();
+        const stack = stacks[stackName];
+        if (!stack) {
+            return exit(`Unknown stack ${stackName}`);
+        }
+        log.info('Loaded stack config from', stack.path);
+        const composeFilePath = resolve(dirname(stack.path), stack.config.composeFilePath);
+        if (!existsSync(composeFilePath)) {
+            return exit(`Couldn't find compose file at ${composeFilePath}`);
+        }
+        const composeFile = readComposeFile(composeFilePath);
+        const transformed = transformComposeFile(composeFile, stack.config, config);
+        const text = yaml.dump(transformed);
+        log.info(text);
+    },
+});
+
 const stop = command({
     name: 'stop',
     description: `Stop deployed stack`,
@@ -108,6 +153,6 @@ const system = subcommands({
 export const app = subcommands({
     name: 'surek',
     version,
-    cmds: { system, ls, deploy, stop },
+    cmds: { system, ls, deploy, stop, validate, view },
 })
 

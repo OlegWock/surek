@@ -1,8 +1,8 @@
 import { spawnSync, spawn } from 'node:child_process';
 import { mkdirSync, readFileSync, writeFileSync } from 'node:fs';
 import yaml from 'js-yaml';
-import { ComposeSpecification } from '@src/compose-spec';
-import { loadStackConfig, StackConfig, SurekConfig } from '@src/config';
+import { ComposeSpecification, ListOrDict } from '@src/compose-spec';
+import { exapndVariables, loadStackConfig, StackConfig, SurekConfig } from '@src/config';
 import { DATA_DIR, DEFAULT_SUREK_LABELS, IS_DEV, SUREK_NETWORK } from '@src/const';
 import { exit } from '@src/utils';
 import { log } from '@src/logger';
@@ -68,7 +68,7 @@ export const transformComposeFile = (originalSpec: ComposeSpecification, config:
 
         const labelsToAdd: Record<string, string> = {
             ...DEFAULT_SUREK_LABELS,
-            'caddy': domain.replace('<root>', surekConfig.rootDomain),
+            'caddy': exapndVariables(domain, surekConfig),
             'caddy.reverse_proxy': `{{upstreams ${port}}}`,
         }
         if (IS_DEV) {
@@ -76,7 +76,7 @@ export const transformComposeFile = (originalSpec: ComposeSpecification, config:
         }
 
         if (auth) {
-            const [user, password] = (auth === '<default_auth>' ? surekConfig.defaultAuth : auth).split(':');
+            const [user, password] = exapndVariables(auth, surekConfig).split(':');
             log.info('Raw password', password);
             const hashedPassword = hashSync(password, 14);
             log.info('Hashed password', hashedPassword);
@@ -91,6 +91,14 @@ export const transformComposeFile = (originalSpec: ComposeSpecification, config:
             Object.assign(spec.services[service].labels, labelsToAdd);
         }
     });
+
+    if (config.env && spec.services) {
+        Object.entries(spec.services).forEach(([service, desc]) => {
+            const containerSpecificEnv = (config.env?.byContainer?.[service] ?? []).map(env => exapndVariables(env, surekConfig));
+            const sharedEnv = (config.env?.shared ?? []).map(env => exapndVariables(env, surekConfig));
+            desc.environment = mergeEnvs(desc.environment ?? [], sharedEnv, containerSpecificEnv);
+        });
+    }
 
     // TODO: probably shouldn't do side effects in this function
     foldersToCreate.forEach(path => mkdirSync(path, { recursive: true }));
@@ -172,5 +180,15 @@ export const execDockerCompose = ({ composeFile, projectFolder, command, options
             }
         });
     });
+};
 
+const mergeEnvs = (original: ListOrDict, ...extensions: string[][]) => {
+    if (Array.isArray(original)) {
+        return [...original, ...extensions.flat()];
+    } else {
+        return {
+            ...original,
+            ...Object.fromEntries(extensions.flat().map(e => e.split('='))),
+        };
+    }
 };
