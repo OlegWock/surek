@@ -26,6 +26,13 @@ const configSchema = zodToCamelCase(z.object({
         const [user, password] = auth.split(':');
         return { user, password };
     }),
+    backup: z.object({
+        password: z.string(),
+        s3_endpoint: z.string(),
+        s3_bucket: z.string(),
+        s3_access_key: z.string(),
+        s3_secret_key: z.string(),
+    }),
 }));
 
 export type SurekConfig = z.infer<typeof configSchema>;
@@ -90,8 +97,16 @@ export const loadStackConfig = (path: string) => {
 };
 
 export const exapndVariables = (val: string, config: SurekConfig) => {
-    return val.replaceAll('<root>', config.rootDomain)
+    let result = val.replaceAll('<root>', config.rootDomain)
         .replaceAll('<default_auth>', config.defaultAuth.user + ':' + config.defaultAuth.password)
         .replaceAll('<default_user>', config.defaultAuth.user)
         .replaceAll('<default_password>', config.defaultAuth.password);
+    if (config.backup) {
+        result = result.replaceAll('<backup_password>', config.backup.password)
+            .replaceAll('<backup_s3_endpoint>', config.backup.s3Endpoint)
+            .replaceAll('<backup_s3_bucket>', config.backup.s3Bucket)
+            .replaceAll('<backup_s3_access_key>', config.backup.s3AccessKey)
+            .replaceAll('<backup_s3_secret_key>', config.backup.s3SecretKey);
+    }
+    return result;
 };

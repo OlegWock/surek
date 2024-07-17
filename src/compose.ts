@@ -77,9 +77,7 @@ export const transformComposeFile = (originalSpec: ComposeSpecification, config:
 
         if (auth) {
             const [user, password] = exapndVariables(auth, surekConfig).split(':');
-            log.info('Raw password', password);
             const hashedPassword = hashSync(password, 14);
-            log.info('Hashed password', hashedPassword);
             labelsToAdd[`caddy.basic_auth`] = '';
             // Replace $ with $$. Ref: https://caddy.community/t/using-caddyfiles-basic-auth-with-environment-variables-and-docker/19918/2
             labelsToAdd[`caddy.basic_auth.${user}`] = hashedPassword.replaceAll('$', '$$$$');
