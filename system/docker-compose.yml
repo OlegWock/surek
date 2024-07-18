@@ -41,53 +41,17 @@ services:
       - /var/log:/host/var/log:ro
       - /var/run/docker.sock:/var/run/docker.sock:ro
   
-  # restic:
-  #   image: mazzolino/restic:1.7
-  #   hostname: restic
-  #   user: "root:root" # To allow restic read files even with restrictive permissions set
-  #   restart: unless-stopped
-  #   environment:
-  #     RUN_ON_STARTUP: "true"
-  #     BACKUP_CRON: "0 30 3 * * *"
-  #     RESTIC_BACKUP_SOURCES: /mnt/source
-  #     RESTIC_BACKUP_ARGS: >-
-  #       --tag surek-volumes
-  #       --verbose
-  #     RESTIC_FORGET_ARGS: >-
-  #       --keep-last 10
-  #       --keep-daily 7
-  #       --keep-weekly 5
-  #       --keep-monthly 12
-  #   volumes:
-  #     - ../surek-data/volumes:/mnt/source:ro
-  #     - /etc/timezone:/etc/timezone:ro
-  #     - /etc/localtime:/etc/localtime:ro
-  
-  # restic_prune:
-  #   image: mazzolino/restic:1.7
-  #   hostname: restic
-  #   restart: unless-stopped
-  #   environment:
-  #     SKIP_INIT: "true"
-  #     RUN_ON_STARTUP: "true"
-  #     PRUNE_CRON: "0 0 4 * * *"
-  #   volumes:
-  #     - /etc/timezone:/etc/timezone:ro
-  #     - /etc/localtime:/etc/localtime:ro
+  backup:
+    image: offen/docker-volume-backup:latest
+    restart: unless-stopped
+    volumes:
+      - ../../volumes:/backup:ro
+      - ./backup-daily.env:/etc/dockervolumebackup/conf.d/backup-daily.env
+      - ./backup-weekly.env:/etc/dockervolumebackup/conf.d/backup-weekly.env
+      - ./backup-monthly.env:/etc/dockervolumebackup/conf.d/backup-monthly.env
+      - /etc/timezone:/etc/timezone:ro
+      - /etc/localtime:/etc/localtime:ro
 
-  # restic_check:
-  #   image: mazzolino/restic:1.7
-  #   hostname: restic
-  #   restart: unless-stopped
-  #   environment:
-  #     SKIP_INIT: "true"
-  #     RUN_ON_STARTUP: "false"
-  #     CHECK_CRON: "0 15 5 * * *"
-  #     RESTIC_CHECK_ARGS: >-
-  #       --read-data-subset=10%
-  #   volumes:
-  #     - /etc/timezone:/etc/timezone:ro
-  #     - /etc/localtime:/etc/localtime:ro
 
   whoami:
     image: traefik/whoami

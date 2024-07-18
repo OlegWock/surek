@@ -12,18 +12,9 @@ public:
     auth: <default_auth>
 env:
   by_container:
-    restic:
-      - RESTIC_REPOSITORY=s3:<backup_s3_endpoint>:/<backup_s3_bucket>
-      - RESTIC_PASSWORD=<backup_password>
-      - AWS_ACCESS_KEY_ID=<backup_s3_access_key>
-      - AWS_SECRET_ACCESS_KEY=<backup_s3_secret_key>
-    restic_prune:
-      - RESTIC_REPOSITORY=s3:<backup_s3_endpoint>:/<backup_s3_bucket>
-      - RESTIC_PASSWORD=<backup_password>
-      - AWS_ACCESS_KEY_ID=<backup_s3_access_key>
-      - AWS_SECRET_ACCESS_KEY=<backup_s3_secret_key>
-    restic_check:
-      - RESTIC_REPOSITORY=s3:<backup_s3_endpoint>:/<backup_s3_bucket>
-      - RESTIC_PASSWORD=<backup_password>
+    backup:
+      - GPG_PASSPHRASE=<backup_password>
+      - AWS_ENDPOINT=<backup_s3_endpoint>
+      - AWS_S3_BUCKET_NAME=<backup_s3_bucket>
       - AWS_ACCESS_KEY_ID=<backup_s3_access_key>
       - AWS_SECRET_ACCESS_KEY=<backup_s3_secret_key>
