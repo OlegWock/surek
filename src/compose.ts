@@ -136,12 +136,13 @@ export const getPathForPatchedComposeFile = (config: StackConfig) => {
 type ExecDockerComposeOptions = {
     composeFile: string
     projectFolder?: string,
-    command: 'up' | 'stop',
+    command: 'up' | 'stop' | 'ps',
     options?: (string | string[])[],
     args?: string[],
+    silent?: boolean,
 };
 
-export const execDockerCompose = ({ composeFile, projectFolder, command, options, args }: ExecDockerComposeOptions) => {
+export const execDockerCompose = ({ composeFile, projectFolder, command, options, args, silent }: ExecDockerComposeOptions) => {
     const commandArgs: string[] = ['compose'];
 
     commandArgs.push('--file', composeFile);
@@ -157,22 +158,27 @@ export const execDockerCompose = ({ composeFile, projectFolder, command, options
         commandArgs.push(...args);
     }
 
-    log.info('Executing docker command');
-    log.info(`$ docker ${commandArgs.join(' ')}`);
+    if (!silent) {
+        log.info('Executing docker command');
+        log.info(`$ docker ${commandArgs.join(' ')}`);
+    }
+    let stdout = '';
     const childProcess = spawn('docker', commandArgs);
     childProcess.stdout.on('data', (data) => {
-        process.stdout.write(data.toString());
+        const chunk = data.toString();
+        stdout += chunk;
+        if (!silent) process.stdout.write(chunk);
     });
     childProcess.stderr.on('data', (data) => {
-        process.stderr.write(data.toString());
+        if (!silent) process.stderr.write(data.toString());
     });
-    return new Promise<void>((resolve, reject) => {
+    return new Promise<string>((resolve, reject) => {
         childProcess.on('error', (error) => {
             reject(error);
         });
         childProcess.on('exit', (code) => {
             if (code === 0) {
-                resolve();
+                resolve(stdout);
             } else {
                 reject(new Error(`Command exited with code ${code}.`));
             }

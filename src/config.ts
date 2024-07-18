@@ -3,11 +3,10 @@ import { fromError } from 'zod-validation-error';
 import yaml from 'js-yaml';
 import camelcaseKeys from 'camelcase-keys';
 import { CamelCasedPropertiesDeep } from 'type-fest';
-import { existsSync, readFileSync, writeFileSync } from 'node:fs';
+import { existsSync, readFileSync } from 'node:fs';
 import { join } from 'node:path';
 import { exit } from "@src/utils/misc";
 import { log } from "@src/utils/logger";
-import { CACHE_FILE, PROJECT_ROOT } from "@src/const";
 
 export const zodToCamelCase = <T extends z.ZodTypeAny>(zod: T): ZodEffects<z.ZodTypeAny, CamelCasedPropertiesDeep<T['_output']>> => {
     return zod.transform((val) => {
@@ -42,10 +41,9 @@ export type SurekConfig = z.infer<typeof configSchema>;
 
 export const loadConfig = (): SurekConfig => {
     const possibleFilenames = ["surek.yml", "surek.yaml"];
-    const path = possibleFilenames.find(name => existsSync(join(PROJECT_ROOT, name)));
+    const path = possibleFilenames.find(name => existsSync(join(process.cwd(), name)));
     if (!path) {
-        log.error(`Config file not found. Make sure you have file surek.yml around`);
-        return exit();
+        return exit(`Config file not found. Make sure you have file surek.yml in current workign directory`);
     }
     const parsed = yaml.load(readFileSync(path, { encoding: 'utf-8' }));
     try {
@@ -112,31 +110,4 @@ export const exapndVariables = (val: string, config: SurekConfig) => {
             .replaceAll('<backup_s3_secret_key>', config.backup.s3SecretKey);
     }
     return result;
-};
-
-const cacheSchema = z.object({
-    githubToken: z.string().optional(),
-});
-
-type SurekCache = z.infer<typeof cacheSchema>;
-
-export const loadCache = (): SurekCache => {
-    if (!existsSync(CACHE_FILE)) {
-        return {};
-    }
-    const parsed = yaml.load(readFileSync(CACHE_FILE, { encoding: 'utf-8' }));
-    try {
-        const validated = cacheSchema.parse(parsed);
-        return validated;
-    } catch (err) {
-        const validationError = fromError(err);
-        log.warn('Error while loading cache');
-        log.warn(validationError.toString());
-        return {};
-    }
-};
-
-export const saveCache = (cache: SurekCache) => {
-    const text = yaml.dump(cache);
-    writeFileSync(CACHE_FILE, text, { encoding: 'utf-8' });
 };

@@ -1,17 +1,81 @@
-import { loadConfig } from '@src/config';
+import { loadConfig, loadStackConfig } from '@src/config';
 import { version } from '../package.json' assert { type: "json" };
 import { command, subcommands, string, positional } from 'cmd-ts';
-import yaml from 'js-yaml';
 import Docker from 'dockerode';
 import { log } from '@src/utils/logger';
 import { SUREK_NETWORK, SYSTEM_SERVICES_CONFIG, DEFAULT_SUREK_LABELS } from '@src/const';
-import { deployStack, deployStackByConfigPath, getAvailableStacks, stopStack, stopStackByConfigPath } from '@src/stacks';
-import { exit } from '@src/utils/misc';
-import { dirname, resolve } from 'path';
-import { existsSync } from 'node:fs';
-import { readComposeFile, transformComposeFile } from '@src/compose';
+import { deployStack, deployStackByConfigPath, getAvailableStacks, getStackByName, getStackStatus, startStack, stopStack, stopStackByConfigPath } from '@src/stacks';
+import { dirname } from 'path';
+import { fromError } from 'zod-validation-error';
+import { printTable, Table } from 'console-table-printer';
 
-const start = command({
+
+const validate = command({
+    name: 'validate',
+    description: `Validate stack config`,
+    args: {
+        stackPath: positional({ type: string, displayName: 'stack config path' }),
+    },
+    handler: async ({ stackPath }) => {
+        try {
+            const config = loadStackConfig(stackPath);
+            log.info('Loaded stack config with name', config.name, 'from', stackPath);
+            log.success('Config is valid');
+        } catch (err) {
+            const validationError = fromError(err);
+            log.error('Error while loading config', stackPath);
+            log.error(validationError.toString());
+        }
+    },
+});
+
+const status = command({
+    name: 'status',
+    description: 'Output status of Surek system containers and user stacks',
+    args: {},
+    handler: async () => {
+        const config = loadConfig();
+        const stacks = getAvailableStacks();
+        log.info('Loaded available stacks');
+
+        const systemStatus = await getStackStatus('surek-system');
+
+        const stackRecords = await Promise.all(stacks.map(async (stack) => {
+            if (!stack.valid) {
+                return {
+                    'Stack': stack.name,
+                    'Status': 'Invalid config',
+                    'Path': stack.path,
+                }
+            }
+            return {
+                'Stack': stack.name,
+                'Status': await getStackStatus(stack.name),
+                'Path': stack.path,
+            }
+        }));
+
+        const table = new Table({
+            columns: [
+                {title: 'Stack', alignment: 'left', name: 'Stack'},
+                {title: 'Status', alignment: 'left', name: 'Status'},
+                {title: 'Path', alignment: 'left', name: 'Path'},
+            ]
+        });
+        table.addRows([
+            {
+                'Stack': 'System containers',
+                'Status': systemStatus,
+                'Path': '',
+            },
+            ...stackRecords,
+        ]);
+
+        table.printTable();
+    },
+});
+
+const systemStart = command({
     name: 'start',
     description: 'Ensure correct Docker configuration and run system containers',
     args: {},
@@ -46,24 +110,6 @@ const systemStop = command({
     },
 });
 
-const ls = command({
-    name: 'ls',
-    description: `Output list of available stacks`,
-    args: {},
-    handler: async () => {
-        const stacks = getAvailableStacks();
-        const names = Object.keys(stacks);
-        if (names.length === 0) {
-            log.info('No stacks available');
-        } else {
-            log.info('Available stacks:');
-            Object.entries(stacks).map(([name, stack]) => {
-                log.info(name, '->', stack.path);
-            });
-        }
-    },
-});
-
 const deploy = command({
     name: 'deploy',
     description: `Deploy stack`,
@@ -72,59 +118,26 @@ const deploy = command({
     },
     handler: async ({ stackName }) => {
         const config = loadConfig();
-        const stacks = getAvailableStacks();
-        const stack = stacks[stackName];
-        if (!stack) {
-            return exit(`Unknown stack ${stackName}`);
-        }
+        const stack = getStackByName(stackName);
         log.info('Loaded stack config from', stack.path);
 
         deployStack(stack.config, dirname(stack.path), config);
     },
 });
 
-const validate = command({
-    name: 'validate',
-    description: `Validate stack config`,
+const start = command({
+    name: 'start',
+    description: `Start already transformed stack`,
     args: {
         stackName: positional({ type: string, displayName: 'stack name' }),
     },
     handler: async ({ stackName }) => {
-        const stacks = getAvailableStacks();
-        const stack = stacks[stackName];
-        if (!stack) {
-            return exit(`Unknown stack ${stackName}`);
-        }
+        const stack = getStackByName(stackName);
         log.info('Loaded stack config from', stack.path);
-        log.success('Config is valid');
-        log.debug(stack.config);
+        startStack(stack.config);
     },
 });
 
-const view = command({
-    name: 'view',
-    description: `Output patched stack compose file`,
-    args: {
-        stackName: positional({ type: string, displayName: 'stack name' }),
-    },
-    handler: async ({ stackName }) => {
-        const config = loadConfig();
-        const stacks = getAvailableStacks();
-        const stack = stacks[stackName];
-        if (!stack) {
-            return exit(`Unknown stack ${stackName}`);
-        }
-        log.info('Loaded stack config from', stack.path);
-        const composeFilePath = resolve(dirname(stack.path), stack.config.composeFilePath);
-        if (!existsSync(composeFilePath)) {
-            return exit(`Couldn't find compose file at ${composeFilePath}`);
-        }
-        const composeFile = readComposeFile(composeFilePath);
-        const transformed = transformComposeFile(composeFile, stack.config, config);
-        const text = yaml.dump(transformed);
-        log.info(text);
-    },
-});
 
 const stop = command({
     name: 'stop',
@@ -133,11 +146,7 @@ const stop = command({
         stackName: positional({ type: string, displayName: 'stack name' }),
     },
     handler: async ({ stackName }) => {
-        const stacks = getAvailableStacks();
-        const stack = stacks[stackName];
-        if (!stack) {
-            return exit(`Unknown stack ${stackName}`);
-        }
+        const stack = getStackByName(stackName);
         log.info('Loaded stack config from', stack.path);
 
         stopStack(stack.config, dirname(stack.path), false);
@@ -147,12 +156,12 @@ const stop = command({
 const system = subcommands({
     name: 'system',
     description: 'Control Surek system containers',
-    cmds: { start, stop: systemStop }
+    cmds: { start: systemStart, stop: systemStop }
 })
 
 export const app = subcommands({
     name: 'surek',
     version,
-    cmds: { system, ls, deploy, stop, validate, view },
+    cmds: { status, validate, start, deploy, stop, system, },
 })
 

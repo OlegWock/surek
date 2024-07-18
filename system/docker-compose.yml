@@ -51,10 +51,6 @@ services:
       - ./backup-monthly.env:/etc/dockervolumebackup/conf.d/backup-monthly.env
       - /etc/timezone:/etc/timezone:ro
       - /etc/localtime:/etc/localtime:ro
-
-
-  whoami:
-    image: traefik/whoami
     
 
 volumes:

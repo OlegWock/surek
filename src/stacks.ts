@@ -1,13 +1,29 @@
 import fg from 'fast-glob';
 import { execDockerCompose, getPathForPatchedComposeFile, readComposeFile, transformComposeFile, writeComposeFile } from "@src/compose";
 import { loadStackConfig, StackConfig, SurekConfig } from "@src/config";
-import { DATA_DIR, STACKS_DIR } from "@src/const";
+import { DATA_DIR } from "@src/const";
 import { log } from "@src/utils/logger";
 import { exit } from "@src/utils/misc";
 import { existsSync, mkdirSync, rmSync } from "node:fs";
 import { dirname, join, resolve } from "node:path";
 import { pullGithubRepo } from '@src/github';
 import { copyFolderRecursivelyWithOverwrite } from '@src/utils/fs';
+import { fromError } from 'zod-validation-error';
+
+const getStackProjectDir = (name: string) => join(DATA_DIR, "projects", name);
+
+export const startStack = async (config: StackConfig) => {
+    const patchedFilePath = getPathForPatchedComposeFile(config);
+    const projectDir = getStackProjectDir(config.name);
+    log.info(`Starting containers...`)
+    await execDockerCompose({
+        composeFile: patchedFilePath,
+        projectFolder: projectDir,
+        command: 'up',
+        options: ['-d', '--build']
+    });
+    log.info(`Containers started`);
+};
 
 export const deployStackByConfigPath = (configPath: string, surekConfig: SurekConfig) => {
     log.info(`Loading Surek stack config ${configPath}`);
@@ -16,7 +32,7 @@ export const deployStackByConfigPath = (configPath: string, surekConfig: SurekCo
 };
 
 export const deployStack = async (config: StackConfig, sourceDir: string, surekConfig: SurekConfig) => {
-    const projectDir = join(DATA_DIR, "projects", config.name);
+    const projectDir = getStackProjectDir(config.name);
     if (existsSync(projectDir)) {
         rmSync(projectDir, { recursive: true });
     }
@@ -37,14 +53,7 @@ export const deployStack = async (config: StackConfig, sourceDir: string, surekC
     const patchedFilePath = getPathForPatchedComposeFile(config);
     writeComposeFile(patchedFilePath, transformed);
     log.info(`Saved patched compose file at ${patchedFilePath}`);
-    log.info(`Starting containers...`)
-    await execDockerCompose({
-        composeFile: patchedFilePath,
-        projectFolder: projectDir,
-        command: 'up',
-        options: ['-d', '--build']
-    });
-    log.info(`Containers started`);
+    startStack(config)
 };
 
 export const stopStackByConfigPath = (configPath: string, silent = false) => {
@@ -67,16 +76,70 @@ export const stopStack = async (config: StackConfig, sourceDir: string, silent =
     log.info(`Containers stopped`);
 };
 
-export const getAvailableStacks = () => {
-    const stacks = fg.sync('**/surek.stack.yml', { cwd: STACKS_DIR });
-    const validStacks = stacks.map(path => {
-        try {
-            const config = loadStackConfig(join(STACKS_DIR, path));
-            return { config, path: join(STACKS_DIR, path) };
-        } catch (err) {
-            return null;
-        }
-    }).filter(s => s !== null);
+type StackInfo = { name: string, config: StackConfig, path: string, valid: true, error: '' };
+type InvalidStackInfo = { name: '', config: null, path: string, valid: false, error: string };
 
-    return Object.fromEntries(validStacks.map(s => [s.config.name, s]));
+export const getAvailableStacks = (): (StackInfo | InvalidStackInfo)[] => {
+    const stacksDir = join(process.cwd(), 'stacks');
+    if (!existsSync(stacksDir)) {
+        return exit(`Folder 'stacks' not found in current working directory`);
+    }
+    const stacks = fg.sync('**/surek.stack.yml', { cwd: stacksDir });
+    const stacksInfo = stacks.map(path => {
+        const configPath = join(stacksDir, path);
+        try {
+            const config = loadStackConfig(configPath);
+            return { name: config.name, config, path: configPath, valid: true, error: '' } as StackInfo;
+        } catch (err) {
+            const validationError = fromError(err);
+            return { name: '', config: null, path: configPath, valid: false, error: validationError.toString() } as InvalidStackInfo;
+        }
+    }).sort((a, b) => a.path.localeCompare(b.path));
+
+    return stacksInfo;
+};
+
+export const getStackByName = (name: string) => {
+    if (!name) {
+        return exit('Invalid stack name');
+    }
+    const stacks = getAvailableStacks();
+    const stack = stacks.find(s => s.name === name);
+    if (!stack) {
+        return exit(`Stack with name '${name}' not found`);
+    }
+    return stack as StackInfo;
+};
+
+export const getStackStatus = async (name: string) => {
+    const dir = getStackProjectDir(name);
+    const composeFile = join(dir, 'docker-compose.surek.yml');
+    if (!existsSync(dir) || !existsSync(composeFile)) {
+        return '× Not deployed';
+    }
+
+    const output = await execDockerCompose({
+        composeFile,
+        silent: true,
+        projectFolder: dir,
+        command: 'ps',
+        args: ['--format', 'json'],
+    });
+
+    const services = output.split('\n').flatMap(s => {
+        try {
+            return [JSON.parse(s)];
+        } catch (err) {
+            return [];
+        }
+    });
+
+    const runningContainers = services.filter(s => s.State === 'running');
+    if (runningContainers.length === 0) {
+        return '× Down';
+    } else if (runningContainers.length === services.length) {
+        return `✓ Running`
+    } else {
+        return `✓ Running (${runningContainers.length}/${services.length})`;
+    }
 };
