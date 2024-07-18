@@ -1,2 +1,8 @@
 root_domain: surek.local
-default_auth: surek:yolo12
+default_auth: surek:fpwshofe32oq
+backup:
+  password: "someReallyStrongPasswordRequired"
+  s3_endpoint: "..."
+  s3_bucket: "bucket"
+  s3_access_key: "access"
+  s3_secret_key: "secret"

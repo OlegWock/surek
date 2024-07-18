@@ -3,11 +3,11 @@ import { fromError } from 'zod-validation-error';
 import yaml from 'js-yaml';
 import camelcaseKeys from 'camelcase-keys';
 import { CamelCasedPropertiesDeep } from 'type-fest';
-import { existsSync, readFileSync } from 'node:fs';
+import { existsSync, readFileSync, writeFileSync } from 'node:fs';
 import { join } from 'node:path';
-import { exit } from "@src/utils";
-import { log } from "@src/logger";
-import { PROJECT_ROOT } from "@src/const";
+import { exit } from "@src/utils/misc";
+import { log } from "@src/utils/logger";
+import { CACHE_FILE, PROJECT_ROOT } from "@src/const";
 
 export const zodToCamelCase = <T extends z.ZodTypeAny>(zod: T): ZodEffects<z.ZodTypeAny, CamelCasedPropertiesDeep<T['_output']>> => {
     return zod.transform((val) => {
@@ -33,6 +33,9 @@ const configSchema = zodToCamelCase(z.object({
         s3_access_key: z.string(),
         s3_secret_key: z.string(),
     }),
+    github: z.object({
+        pat: z.string()
+    }).optional(),
 }));
 
 export type SurekConfig = z.infer<typeof configSchema>;
@@ -109,4 +112,31 @@ export const exapndVariables = (val: string, config: SurekConfig) => {
             .replaceAll('<backup_s3_secret_key>', config.backup.s3SecretKey);
     }
     return result;
+};
+
+const cacheSchema = z.object({
+    githubToken: z.string().optional(),
+});
+
+type SurekCache = z.infer<typeof cacheSchema>;
+
+export const loadCache = (): SurekCache => {
+    if (!existsSync(CACHE_FILE)) {
+        return {};
+    }
+    const parsed = yaml.load(readFileSync(CACHE_FILE, { encoding: 'utf-8' }));
+    try {
+        const validated = cacheSchema.parse(parsed);
+        return validated;
+    } catch (err) {
+        const validationError = fromError(err);
+        log.warn('Error while loading cache');
+        log.warn(validationError.toString());
+        return {};
+    }
+};
+
+export const saveCache = (cache: SurekCache) => {
+    const text = yaml.dump(cache);
+    writeFileSync(CACHE_FILE, text, { encoding: 'utf-8' });
 };

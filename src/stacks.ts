@@ -2,10 +2,12 @@ import fg from 'fast-glob';
 import { execDockerCompose, getPathForPatchedComposeFile, readComposeFile, transformComposeFile, writeComposeFile } from "@src/compose";
 import { loadStackConfig, StackConfig, SurekConfig } from "@src/config";
 import { DATA_DIR, STACKS_DIR } from "@src/const";
-import { log } from "@src/logger";
-import { exit } from "@src/utils";
-import { existsSync, mkdirSync } from "node:fs";
+import { log } from "@src/utils/logger";
+import { exit } from "@src/utils/misc";
+import { existsSync, mkdirSync, rmSync } from "node:fs";
 import { dirname, join, resolve } from "node:path";
+import { pullGithubRepo } from '@src/github';
+import { copyFolderRecursivelyWithOverwrite } from '@src/utils/fs';
 
 export const deployStackByConfigPath = (configPath: string, surekConfig: SurekConfig) => {
     log.info(`Loading Surek stack config ${configPath}`);
@@ -14,14 +16,19 @@ export const deployStackByConfigPath = (configPath: string, surekConfig: SurekCo
 };
 
 export const deployStack = async (config: StackConfig, sourceDir: string, surekConfig: SurekConfig) => {
-    if (config.source.type === 'github') {
-        throw new Error('Not implemented yet');
-    }
-
     const projectDir = join(DATA_DIR, "projects", config.name);
+    if (existsSync(projectDir)) {
+        rmSync(projectDir, { recursive: true });
+    }
     mkdirSync(projectDir, { recursive: true });
 
-    const composeFilePath = resolve(sourceDir, config.composeFilePath);
+    if (config.source.type === 'github') {
+        await pullGithubRepo(config, projectDir, surekConfig);
+    }
+
+    copyFolderRecursivelyWithOverwrite(sourceDir, projectDir);
+
+    const composeFilePath = resolve(projectDir, config.composeFilePath);
     if (!existsSync(composeFilePath)) {
         return exit(`Couldn't find compose file at ${composeFilePath}`);
     }
@@ -33,9 +40,9 @@ export const deployStack = async (config: StackConfig, sourceDir: string, surekC
     log.info(`Starting containers...`)
     await execDockerCompose({
         composeFile: patchedFilePath,
-        projectFolder: sourceDir,
+        projectFolder: projectDir,
         command: 'up',
-        options: ['-d']
+        options: ['-d', '--build']
     });
     log.info(`Containers started`);
 };
@@ -43,7 +50,7 @@ export const deployStack = async (config: StackConfig, sourceDir: string, surekC
 export const stopStackByConfigPath = (configPath: string, silent = false) => {
     const config = loadStackConfig(configPath);
     return stopStack(config, dirname(configPath), silent);
-}
+};
 
 export const stopStack = async (config: StackConfig, sourceDir: string, silent = false) => {
     const patchedComposeFile = getPathForPatchedComposeFile(config);
@@ -72,4 +79,4 @@ export const getAvailableStacks = () => {
     }).filter(s => s !== null);
 
     return Object.fromEntries(validStacks.map(s => [s.config.name, s]));
-}
+};

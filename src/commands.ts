@@ -3,10 +3,10 @@ import { version } from '../package.json' assert { type: "json" };
 import { command, subcommands, string, positional } from 'cmd-ts';
 import yaml from 'js-yaml';
 import Docker from 'dockerode';
-import { log } from '@src/logger';
+import { log } from '@src/utils/logger';
 import { SUREK_NETWORK, SYSTEM_SERVICES_CONFIG, DEFAULT_SUREK_LABELS } from '@src/const';
 import { deployStack, deployStackByConfigPath, getAvailableStacks, stopStack, stopStackByConfigPath } from '@src/stacks';
-import { exit } from '@src/utils';
+import { exit } from '@src/utils/misc';
 import { dirname, resolve } from 'path';
 import { existsSync } from 'node:fs';
 import { readComposeFile, transformComposeFile } from '@src/compose';
@@ -32,7 +32,7 @@ const start = command({
             });
         }
 
-        await stopStackByConfigPath(SYSTEM_SERVICES_CONFIG);
+        await stopStackByConfigPath(SYSTEM_SERVICES_CONFIG, true);
         await deployStackByConfigPath(SYSTEM_SERVICES_CONFIG, config);
     },
 });

@@ -1,11 +1,11 @@
-import { spawnSync, spawn } from 'node:child_process';
+import { spawn } from 'node:child_process';
 import { mkdirSync, readFileSync, writeFileSync } from 'node:fs';
 import yaml from 'js-yaml';
 import { ComposeSpecification, ListOrDict } from '@src/compose-spec';
-import { exapndVariables, loadStackConfig, StackConfig, SurekConfig } from '@src/config';
+import { exapndVariables, StackConfig, SurekConfig } from '@src/config';
 import { DATA_DIR, DEFAULT_SUREK_LABELS, IS_DEV, SUREK_NETWORK } from '@src/const';
-import { exit } from '@src/utils';
-import { log } from '@src/logger';
+import { exit } from '@src/utils/misc';
+import { log } from '@src/utils/logger';
 import { join } from 'node:path';
 import { hashSync } from 'bcrypt';
 
@@ -18,7 +18,7 @@ export const readComposeFile = (path: string) => {
 export const transformComposeFile = (originalSpec: ComposeSpecification, config: StackConfig, surekConfig: SurekConfig): ComposeSpecification => {
     const spec = structuredClone(originalSpec);
 
-    const projectDir = join(DATA_DIR, "projects", config.name, 'volumes');
+    const volumesDir = join(DATA_DIR, 'volumes', config.name);
     const foldersToCreate: string[] = [];
 
     if (!spec.networks) {
@@ -41,7 +41,7 @@ export const transformComposeFile = (originalSpec: ComposeSpecification, config:
                 log.warn(`Volume ${name} is already pre-configured. This volume will be skipped on backup.`);
                 return;
             }
-            const folderPath = join(projectDir, name);
+            const folderPath = join(volumesDir, name);
             foldersToCreate.push(folderPath);
             spec.volumes![name] = {
                 driver: 'local',
@@ -129,7 +129,7 @@ export const writeComposeFile = (path: string, content: ComposeSpecification) =>
 
 export const getPathForPatchedComposeFile = (config: StackConfig) => {
     const projectDir = join(DATA_DIR, "projects", config.name);
-    const patchedFilePath = join(projectDir, 'docker-compose.yml');
+    const patchedFilePath = join(projectDir, 'docker-compose.surek.yml');
     return patchedFilePath;
 };
 
