@@ -3,8 +3,6 @@ source:
   type: local
 compose_file_path: ./docker-compose.yml
 public:
-  - domain: whoami.<root>
-    target: whoami
   - domain: portainer.<root>
     target: portainer:9000
   - domain: netdata.<root>

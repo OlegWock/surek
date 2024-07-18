@@ -31,7 +31,7 @@ const configSchema = zodToCamelCase(z.object({
         s3_bucket: z.string(),
         s3_access_key: z.string(),
         s3_secret_key: z.string(),
-    }),
+    }).optional(),
     github: z.object({
         pat: z.string()
     }).optional(),

@@ -1,7 +1,7 @@
 import fg from 'fast-glob';
-import { execDockerCompose, getPathForPatchedComposeFile, readComposeFile, transformComposeFile, writeComposeFile } from "@src/compose";
+import { execDockerCompose, getPathForPatchedComposeFile, readComposeFile, transformComposeFile, transformSystemComposeFile, writeComposeFile } from "@src/compose";
 import { loadStackConfig, StackConfig, SurekConfig } from "@src/config";
-import { DATA_DIR } from "@src/const";
+import { DATA_DIR, SYSTEM_DIR } from "@src/const";
 import { log } from "@src/utils/logger";
 import { exit } from "@src/utils/misc";
 import { existsSync, mkdirSync, rmSync } from "node:fs";
@@ -48,7 +48,10 @@ export const deployStack = async (config: StackConfig, sourceDir: string, surekC
     if (!existsSync(composeFilePath)) {
         return exit(`Couldn't find compose file at ${composeFilePath}`);
     }
-    const composeFile = readComposeFile(composeFilePath);
+    let composeFile = readComposeFile(composeFilePath);
+    if (config.name === 'surek-system' && sourceDir === SYSTEM_DIR) {
+        composeFile = transformSystemComposeFile(composeFile, surekConfig);
+    }
     const transformed = transformComposeFile(composeFile, config, surekConfig);
     const patchedFilePath = getPathForPatchedComposeFile(config);
     writeComposeFile(patchedFilePath, transformed);

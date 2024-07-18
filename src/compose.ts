@@ -15,6 +15,13 @@ export const readComposeFile = (path: string) => {
     return parsed as ComposeSpecification;
 };
 
+export const transformSystemComposeFile = (originalSpec: ComposeSpecification, config: SurekConfig): ComposeSpecification => {
+    if (!config.backup && originalSpec.services) {
+        delete originalSpec.services['backup'];
+    }
+    return originalSpec;
+};
+
 export const transformComposeFile = (originalSpec: ComposeSpecification, config: StackConfig, surekConfig: SurekConfig): ComposeSpecification => {
     const spec = structuredClone(originalSpec);
 

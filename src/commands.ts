@@ -7,73 +7,8 @@ import { SUREK_NETWORK, SYSTEM_SERVICES_CONFIG, DEFAULT_SUREK_LABELS } from '@sr
 import { deployStack, deployStackByConfigPath, getAvailableStacks, getStackByName, getStackStatus, startStack, stopStack, stopStackByConfigPath } from '@src/stacks';
 import { dirname } from 'path';
 import { fromError } from 'zod-validation-error';
-import { printTable, Table } from 'console-table-printer';
+import { Table } from 'console-table-printer';
 
-
-const validate = command({
-    name: 'validate',
-    description: `Validate stack config`,
-    args: {
-        stackPath: positional({ type: string, displayName: 'stack config path' }),
-    },
-    handler: async ({ stackPath }) => {
-        try {
-            const config = loadStackConfig(stackPath);
-            log.info('Loaded stack config with name', config.name, 'from', stackPath);
-            log.success('Config is valid');
-        } catch (err) {
-            const validationError = fromError(err);
-            log.error('Error while loading config', stackPath);
-            log.error(validationError.toString());
-        }
-    },
-});
-
-const status = command({
-    name: 'status',
-    description: 'Output status of Surek system containers and user stacks',
-    args: {},
-    handler: async () => {
-        const config = loadConfig();
-        const stacks = getAvailableStacks();
-        log.info('Loaded available stacks');
-
-        const systemStatus = await getStackStatus('surek-system');
-
-        const stackRecords = await Promise.all(stacks.map(async (stack) => {
-            if (!stack.valid) {
-                return {
-                    'Stack': stack.name,
-                    'Status': 'Invalid config',
-                    'Path': stack.path,
-                }
-            }
-            return {
-                'Stack': stack.name,
-                'Status': await getStackStatus(stack.name),
-                'Path': stack.path,
-            }
-        }));
-
-        const table = new Table({
-            columns: [
-                {title: 'Stack', alignment: 'left', name: 'Stack'},
-                {title: 'Status', alignment: 'left', name: 'Status'},
-                {title: 'Path', alignment: 'left', name: 'Path'},
-            ]
-        });
-        table.addRows([
-            {
-                'Stack': 'System containers',
-                'Status': systemStatus,
-                'Path': '',
-            },
-            ...stackRecords,
-        ]);
-
-        table.printTable();
-    },
-});
 
 const systemStart = command({
     name: 'start',
@@ -138,7 +73,6 @@ const start = command({
     },
 });
 
-
 const stop = command({
     name: 'stop',
     description: `Stop deployed stack`,
@@ -150,6 +84,71 @@ const stop = command({
         log.info('Loaded stack config from', stack.path);
 
         stopStack(stack.config, dirname(stack.path), false);
+    },
+});
+
+const validate = command({
+    name: 'validate',
+    description: `Validate stack config`,
+    args: {
+        stackPath: positional({ type: string, displayName: 'stack config path' }),
+    },
+    handler: async ({ stackPath }) => {
+        try {
+            const config = loadStackConfig(stackPath);
+            log.info('Loaded stack config with name', config.name, 'from', stackPath);
+            log.success('Config is valid');
+        } catch (err) {
+            const validationError = fromError(err);
+            log.error('Error while loading config', stackPath);
+            log.error(validationError.toString());
+        }
+    },
+});
+
+const status = command({
+    name: 'status',
+    description: 'Output status of Surek system containers and user stacks',
+    args: {},
+    handler: async () => {
+        const config = loadConfig();
+        const stacks = getAvailableStacks();
+        log.info('Loaded available stacks');
+
+        const systemStatus = await getStackStatus('surek-system');
+
+        const stackRecords = await Promise.all(stacks.map(async (stack) => {
+            if (!stack.valid) {
+                return {
+                    'Stack': stack.name,
+                    'Status': 'Invalid config',
+                    'Path': stack.path,
+                }
+            }
+            return {
+                'Stack': stack.name,
+                'Status': await getStackStatus(stack.name),
+                'Path': stack.path,
+            }
+        }));
+
+        const table = new Table({
+            columns: [
+                {title: 'Stack', alignment: 'left', name: 'Stack'},
+                {title: 'Status', alignment: 'left', name: 'Status'},
+                {title: 'Path', alignment: 'left', name: 'Path'},
+            ]
+        });
+        table.addRows([
+            {
+                'Stack': 'System containers',
+                'Status': systemStatus,
+                'Path': '',
+            },
+            ...stackRecords,
+        ]);
+
+        table.printTable();
     },
 });
 
