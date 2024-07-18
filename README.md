@@ -1,5 +1,7 @@
 # surek
 
+* ToDo: I'll write docs for this later
+
 How to use:
 
 Create file `surek.yml` based on `surek.yml.example`.
