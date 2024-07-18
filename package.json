@@ -1,6 +1,6 @@
 {
   "name": "surek",
-  "version": "1.0.1",
+  "version": "1.0.2",
   "main": "./dist/index.js",
   "author": "OlegWock",
   "license": "GPL-3.0-only",
@@ -34,6 +34,7 @@
     "dockerode": "^4.0.2",
     "dockerode-compose": "^1.4.0",
     "fast-glob": "^3.3.2",
+    "find-up-simple": "^1.0.0",
     "fs-extra": "^11.2.0",
     "js-yaml": "^4.1.0",
     "jszip": "^3.10.1",

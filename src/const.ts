@@ -1,8 +1,9 @@
-import { existsSync, mkdirSync } from "node:fs";
-import { join } from "node:path";
-import {packageDirectorySync} from 'pkg-dir';
+import { existsSync, mkdirSync, realpathSync } from "node:fs";
+import { dirname, join } from "node:path";
 
-export const PROJECT_ROOT = packageDirectorySync()!;
+
+const realScriptPath = realpathSync(process.argv[1]);
+export const PROJECT_ROOT = join(dirname(realScriptPath), '..');
 
 export const getDataDir = () => {
     const dataDir = join(process.cwd(), 'surek-data');
