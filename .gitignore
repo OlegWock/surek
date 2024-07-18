@@ -178,3 +178,5 @@ dist
 surek-data
 stacks
 surek.yml
+
+dist/

@@ -1,16 +1,16 @@
 import fg from 'fast-glob';
-import { execDockerCompose, getPathForPatchedComposeFile, readComposeFile, transformComposeFile, transformSystemComposeFile, writeComposeFile } from "@src/compose";
-import { loadStackConfig, StackConfig, SurekConfig } from "@src/config";
-import { DATA_DIR, SYSTEM_DIR } from "@src/const";
-import { log } from "@src/utils/logger";
-import { exit } from "@src/utils/misc";
+import { execDockerCompose, getPathForPatchedComposeFile, readComposeFile, transformComposeFile, transformSystemComposeFile, writeComposeFile } from "./compose.js";
+import { loadStackConfig, StackConfig, SurekConfig } from "./config.js";
+import { getDataDir, SYSTEM_DIR } from "./const.js";
+import { log } from "./utils/logger.js";
+import { exit } from "./utils/misc.js";
 import { existsSync, mkdirSync, rmSync } from "node:fs";
 import { dirname, join, resolve } from "node:path";
-import { pullGithubRepo } from '@src/github';
-import { copyFolderRecursivelyWithOverwrite } from '@src/utils/fs';
+import { pullGithubRepo } from './github.js';
+import { copyFolderRecursivelyWithOverwrite } from './utils/fs.js';
 import { fromError } from 'zod-validation-error';
 
-const getStackProjectDir = (name: string) => join(DATA_DIR, "projects", name);
+export const getStackProjectDir = (name: string) => join(getDataDir(), "projects", name);
 
 export const startStack = async (config: StackConfig) => {
     const patchedFilePath = getPathForPatchedComposeFile(config);

@@ -4,11 +4,12 @@
         "resolveJsonModule": true,
         "noImplicitAny": true,
         "strictNullChecks": true,
-        "module": "ESNext",
-        "moduleResolution": "Node",
-        "baseUrl": ".",
-        "paths": {
-          "@src/*": ["./src/*"]
-        }
-    }
+        "module": "NodeNext",
+        "moduleResolution": "NodeNext",
+        "baseUrl": "./",
+        "outDir": "dist",
+    },
+
+    "include": ["./src/", "index.ts"],
+    "exclude": ["./stacks/", "./surek-data/", "./dist/"]
   }

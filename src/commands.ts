@@ -1,13 +1,16 @@
-import { loadConfig, loadStackConfig } from '@src/config';
-import { version } from '../package.json' assert { type: "json" };
+import { loadConfig, loadStackConfig } from './config.js';
 import { command, subcommands, string, positional } from 'cmd-ts';
 import Docker from 'dockerode';
-import { log } from '@src/utils/logger';
-import { SUREK_NETWORK, SYSTEM_SERVICES_CONFIG, DEFAULT_SUREK_LABELS } from '@src/const';
-import { deployStack, deployStackByConfigPath, getAvailableStacks, getStackByName, getStackStatus, startStack, stopStack, stopStackByConfigPath } from '@src/stacks';
+import { log } from './utils/logger.js';
+import { SUREK_NETWORK, SYSTEM_SERVICES_CONFIG, DEFAULT_SUREK_LABELS } from './const.js';
+import { deployStack, deployStackByConfigPath, getAvailableStacks, getStackByName, getStackStatus, startStack, stopStack, stopStackByConfigPath } from './stacks.js';
 import { dirname } from 'path';
 import { fromError } from 'zod-validation-error';
 import { Table } from 'console-table-printer';
+import { createRequire } from "module";
+
+const require = createRequire(import.meta.url);
+const packageJson = require("../package.json");
 
 
 const systemStart = command({
@@ -160,7 +163,7 @@ const system = subcommands({
 
 export const app = subcommands({
     name: 'surek',
-    version,
-    cmds: { status, validate, start, deploy, stop, system, },
+    version: packageJson.version,
+    cmds: { status, system, start, deploy, stop, validate, },
 })
 

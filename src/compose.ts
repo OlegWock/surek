@@ -1,13 +1,14 @@
 import { spawn } from 'node:child_process';
 import { mkdirSync, readFileSync, writeFileSync } from 'node:fs';
 import yaml from 'js-yaml';
-import { ComposeSpecification, ListOrDict } from '@src/compose-spec';
-import { exapndVariables, StackConfig, SurekConfig } from '@src/config';
-import { DATA_DIR, DEFAULT_SUREK_LABELS, IS_DEV, SUREK_NETWORK } from '@src/const';
-import { exit } from '@src/utils/misc';
-import { log } from '@src/utils/logger';
+import { ComposeSpecification, ListOrDict } from './compose-spec.js';
+import { exapndVariables, StackConfig, SurekConfig } from './config.js';
+import { getDataDir, DEFAULT_SUREK_LABELS, IS_DEV, SUREK_NETWORK } from './const.js';
+import { exit } from './utils/misc.js';
+import { log } from './utils/logger.js';
 import { join } from 'node:path';
 import { hashSync } from 'bcrypt';
+import { getStackProjectDir } from './stacks.js';
 
 export const readComposeFile = (path: string) => {
     const text = readFileSync(path, { encoding: 'utf-8' });
@@ -25,7 +26,8 @@ export const transformSystemComposeFile = (originalSpec: ComposeSpecification, c
 export const transformComposeFile = (originalSpec: ComposeSpecification, config: StackConfig, surekConfig: SurekConfig): ComposeSpecification => {
     const spec = structuredClone(originalSpec);
 
-    const volumesDir = join(DATA_DIR, 'volumes', config.name);
+    const dataDir = getDataDir();
+    const volumesDir = join(dataDir, 'volumes', config.name);
     const foldersToCreate: string[] = [];
 
     if (!spec.networks) {
@@ -135,7 +137,7 @@ export const writeComposeFile = (path: string, content: ComposeSpecification) =>
 };
 
 export const getPathForPatchedComposeFile = (config: StackConfig) => {
-    const projectDir = join(DATA_DIR, "projects", config.name);
+    const projectDir = getStackProjectDir(config.name);
     const patchedFilePath = join(projectDir, 'docker-compose.surek.yml');
     return patchedFilePath;
 };

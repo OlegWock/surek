@@ -1,5 +1,5 @@
-import { log } from '@src/utils/logger';
-import { exit } from '@src/utils/misc';
+import { log } from './logger.js';
+import { exit } from './misc.js';
 import fs from 'fs-extra';
 import path from 'node:path';
 import { finished, Readable } from 'node:stream';

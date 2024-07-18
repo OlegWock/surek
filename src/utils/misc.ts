@@ -1,4 +1,4 @@
-import { log } from "@src/utils/logger";
+import { log } from "./logger.js";
 
 export const exit = (message: string = '', code = 1): never => {
     if (message) {

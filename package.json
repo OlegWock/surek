@@ -1,14 +1,18 @@
 {
   "name": "surek",
   "version": "1.0.0",
-  "main": "index.js",
+  "main": "./dist/index.js",
   "author": "OlegWock",
   "license": "GPL-3.0-only",
   "scripts": {
     "dev": "NODE_ENV=development tsx index.ts",
-    "surek": "tsx index.ts"
+    "surek": "tsx index.ts",
+    "build": "tsc -p tsconfig.json && chmod +x ./dist/index.js"
   },
   "type": "module",
+  "bin": {
+    "surek": "./dist/index.js"
+  },
   "dependencies": {
     "@octokit/rest": "^21.0.1",
     "@tsconfig/node18": "^18.2.4",

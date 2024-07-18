@@ -1,8 +1,8 @@
 import { Octokit } from "@octokit/rest";
-import { StackConfig, SurekConfig } from "@src/config";
-import { log } from "@src/utils/logger";
-import { exit } from "@src/utils/misc";
-import { copyFolderRecursivelyWithOverwrite, moveContentsUpAndRemoveFolder, unpackZipStream } from "@src/utils/fs";
+import { StackConfig, SurekConfig } from "./config.js";
+import { log } from "./utils/logger.js";
+import { exit } from "./utils/misc.js";
+import { moveContentsUpAndRemoveFolder, unpackZipStream } from "./utils/fs.js";
 import { type ReadableStream } from "node:stream/web";
 
 

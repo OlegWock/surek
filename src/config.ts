@@ -5,8 +5,8 @@ import camelcaseKeys from 'camelcase-keys';
 import { CamelCasedPropertiesDeep } from 'type-fest';
 import { existsSync, readFileSync } from 'node:fs';
 import { join } from 'node:path';
-import { exit } from "@src/utils/misc";
-import { log } from "@src/utils/logger";
+import { exit } from "./utils/misc.js";
+import { log } from "./utils/logger.js";
 
 export const zodToCamelCase = <T extends z.ZodTypeAny>(zod: T): ZodEffects<z.ZodTypeAny, CamelCasedPropertiesDeep<T['_output']>> => {
     return zod.transform((val) => {
