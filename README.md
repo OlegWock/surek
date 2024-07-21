@@ -54,6 +54,10 @@ After system containers started, you can verify their status with command:
 surek status
 ```
 
+Visit `portainer.<root domain>` to finish Portainer installation in 5 minutes or it will lock you out and require removing volume and re-installing it. 
+
+Besides portainer, there will be `netdata.<root domain>` to monitor your server.
+
 Next are stacks. Stack is a collection of services that are related. In Surek, stacks are stored in `stacks` folder (create it!) and defined by `surek.stack.yml` file. This file defines location of compose file and other stack parameters. 
 
 ```yaml
