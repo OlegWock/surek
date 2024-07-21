@@ -1,14 +1,14 @@
 # Surek
 
-Surek is an utility built on top of Docker Compose to make managing self-hosted services easier.
+Surek is a utility built on top of Docker Compose to make managing self-hosted services easier.
 
-It manages Caddy reverse proxy for your containers, can backup Docker volumes, and comes with Portainer and Netdata to easily manage and monitor your server.
+It manages Caddy reverse proxy for your containers, can back up Docker volumes, and comes with Portainer and Netdata to easily manage and monitor your server.
 
 ## Install
 
 Surek requires that you have Docker and Node.js (tested with v22) installed. It also assumes you have a domain pointed to your server.
 
-Run this command to install Surek. If your docker installation requires using `sudo`, install Surek with `sudo` too.
+Run this command to install Surek. If your Docker installation requires using `sudo`, install Surek with `sudo` too.
 
 ```
 npm install -g surek
@@ -54,11 +54,11 @@ After system containers started, you can verify their status with command:
 surek status
 ```
 
-Visit `portainer.<root domain>` to finish Portainer installation in 5 minutes or it will lock you out and require removing volume and re-installing it. 
+Visit `portainer.<root domain>` to finish Portainer installation in 5 minutes, or it will lock you out and require removing volume and re-installing it. 
 
-Besides portainer, there will be `netdata.<root domain>` to monitor your server.
+Besides Portainer, there will be a `netdata.<root domain>` to monitor your server.
 
-Next are stacks. Stack is a collection of services that are related. In Surek, stacks are stored in `stacks` folder (create it!) and defined by `surek.stack.yml` file. This file defines location of compose file and other stack parameters. 
+Next are stacks. Stack is a collection of services that are related. In Surek, stacks are stored in the `stacks` folder (create it!) and defined by the `surek.stack.yml` file. This file defines the location of the compose file and other stack parameters. 
 
 ```yaml
 name: any-name-you-want
@@ -92,11 +92,11 @@ backup:
     - volume-name
 ```
 
-And last important piece is compose file itself. You write compose files as you would do normally, except a few specifics.
+And the last important piece is the compose file itself. You write compose files as you would normally, except a few specifics.
 
-* You don't need to expose any ports from container
+* You don't need to expose any ports from the container
 * You should use named volumes (not bind mounts) if you want them to be backuped. It's also important to not set any parameters for these volumes (like driver or driver parameters), as they will be overwritten by Surek.
-* All services (from all stacks) will be placed in same internal network, so if you have any code depending on container hostname (e.g. connecting database to app), make sure you set hostname explicitly or use unique service name for them to avoid collisions with common services (like MySQL, Redis, etc.) from other stacks.
+* All services (from all stacks) will be placed on the same internal network, so if you have any code depending on the container hostname (e.g., connecting a database to an app), make sure you set the hostname explicitly or use a unique service name for them to avoid collisions with common services (like MySQL, Redis, etc.) from other stacks.
 
 With that finished, you can start stack with this command:
 
@@ -104,11 +104,11 @@ With that finished, you can start stack with this command:
 surek deploy <stack name from config>
 ```
 
-This will deploy stack. What happens under the hood is:
+This will deploy the stack. What happens under the hood is:
 
-1. If using GitHub, Surek will pull latest version into temporary folder.
-2. Surek will copy all files from stack folder (folder where `surek.stack.yml` is stored) into temporary folder (overwriting files and merging folders). If you need to overwrite or add any files to stack pulled from GitHub repo, this is the way.
-3. Surek will read compose file (by path specified in stack config), transform it by adding containers to network, updating volume configuration, etc., and save as `docker-compose.surek.yml`.
+1. If using GitHub, Surek will pull the latest version into a temporary folder.
+2. Surek will copy all files from the stack folder (the folder where `surek.stack.yml` is stored) into a temporary folder (overwriting files and merging folders). If you need to overwrite or add any files to the stack pulled from the GitHub repo, this is the way.
+3. Surek will read the compose file (by path specified in stack config), transform it by adding containers to the network, updating volume configuration, etc., and save it as `docker-compose.surek.yml`.
 4. Docker Compose will be used to deploy the stack.
 
 To stop stack:
@@ -117,7 +117,7 @@ To stop stack:
 surek stop <stack name>
 ```
 
-To start stack again without re-pulling and transforming compose file:
+To start a stack again without re-pulling and transforming the compose file:
 
 ```
 surek start <stack name>
@@ -125,7 +125,7 @@ surek start <stack name>
 
 ## Examples
 
-You can find example stacks in [example-stacks](example-stacks/) folder.
+You can find example stacks in the [example-stacks](example-stacks/) folder.
 
 ## Variables
 
