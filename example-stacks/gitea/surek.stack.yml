@@ -1,0 +1,8 @@
+name: gitea
+source:
+  type: local
+compose_file_path: ./docker-compose.yml
+public:
+  - domain: git.<root>
+    target: gitea:3000
+

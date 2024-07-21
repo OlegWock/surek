@@ -1,0 +1,15 @@
+name: rss
+source:
+  type: local
+compose_file_path: ./docker-compose.yml
+public:
+  - domain: rss.<root>
+    target: freshrss:80
+  - domain: rsshub.<root>
+    target: rsshub:1200
+env:
+  by_container:
+    freshrss:
+      - FRESHRSS_USER=--api-password <default_password> --email example@example.com --language en --password <default_password> --user <default_user>
+    rsshub:
+      - ACCESS_KEY=<default_password>

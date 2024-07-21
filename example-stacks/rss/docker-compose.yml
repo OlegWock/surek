@@ -1,0 +1,42 @@
+
+
+
+services:
+  freshrss:
+    image: freshrss/freshrss:alpine
+    hostname: freshrss
+    restart: unless-stopped
+    logging:
+      options:
+        max-size: 10m
+    volumes:
+      - freshrss_data:/var/www/FreshRSS/data
+      - freshrss_extensions:/var/www/FreshRSS/extensions
+      - /etc/timezone:/etc/timezone:ro
+      - /etc/localtime:/etc/localtime:ro
+    environment:
+      CRON_MIN: '3,33'
+  
+  rsshub:
+    image: diygod/rsshub:chromium-bundled
+    restart: unless-stopped
+    ports:
+      - '1200:1200'
+    environment:
+      NODE_ENV: production
+      CACHE_TYPE: redis
+      REDIS_URL: 'redis://rsshub-redis:6379/'
+    depends_on:
+      - rsshub_redis
+
+  rsshub_redis:
+    image: redis:alpine
+    restart: unless-stopped
+    hostname: rsshub-redis
+    volumes:
+        - rsshub_redis_data:/data
+
+volumes:
+  freshrss_data: {}
+  freshrss_extensions: {}
+  rsshub_redis_data: {}
