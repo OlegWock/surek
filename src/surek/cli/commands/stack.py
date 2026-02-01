@@ -64,7 +64,6 @@ def stop(
 
 def status(
     json_output: bool = typer.Option(False, "--json", help="Output as JSON"),
-    verbose: bool = typer.Option(False, "-v", "--verbose", help="Show services and endpoints"),
 ) -> None:
     """Show status of all stacks with health and resource usage."""
     try:
@@ -80,10 +79,8 @@ def status(
             "health": system_status.health_summary,
             "cpu": f"{system_status.cpu_percent:.1f}%",
             "memory": format_bytes(system_status.memory_bytes),
-            "path": "",
+            "endpoints": [],
         }
-        if verbose:
-            system_result["services"] = [s.name for s in system_status.services]
         results.append(system_result)
 
         # User stacks
@@ -97,30 +94,28 @@ def status(
                         "health": "-",
                         "cpu": "-",
                         "memory": "-",
-                        "path": str(stack.path.parent.relative_to(Path.cwd())),
+                        "endpoints": [],
                         "error": stack.error or "Unknown error",
                     })
                     continue
 
                 if stack.config:
                     stack_status = get_stack_status_detailed(stack.config.name)
+                    # Expand domains with root
+                    endpoints: list[str] = []
+                    if stack.config.public:
+                        for ep in stack.config.public:
+                            domain = ep.domain.replace("<root>", surek_config.root_domain)
+                            endpoints.append(f"https://{domain}")
+
                     stack_result: dict[str, object] = {
                         "name": stack.config.name,
                         "status": stack_status.status_text,
                         "health": stack_status.health_summary,
                         "cpu": f"{stack_status.cpu_percent:.1f}%",
                         "memory": format_bytes(stack_status.memory_bytes),
-                        "path": str(stack.path.parent.relative_to(Path.cwd())),
+                        "endpoints": endpoints,
                     }
-                    if verbose:
-                        stack_result["services"] = [s.name for s in stack_status.services]
-                        if stack.config.public:
-                            # Expand domains with root
-                            endpoints = []
-                            for ep in stack.config.public:
-                                domain = ep.domain.replace("<root>", surek_config.root_domain)
-                                endpoints.append(f"https://{domain}")
-                            stack_result["endpoints"] = endpoints
                     results.append(stack_result)
         except SurekError:
             pass  # No stacks directory
@@ -134,10 +129,7 @@ def status(
             table.add_column("Health")
             table.add_column("CPU")
             table.add_column("Memory")
-            if verbose:
-                table.add_column("Endpoints", style="dim")
-            else:
-                table.add_column("Path", style="dim")
+            table.add_column("Endpoints", style="dim")
 
             for result in results:
                 status_text = str(result["status"])
@@ -150,27 +142,17 @@ def status(
                 elif "Invalid" in status_text:
                     status_text = f"[red]{status_text}[/red]"
 
-                if verbose:
-                    endpoints_obj = result.get("endpoints", [])
-                    endpoints_list: list[str] = endpoints_obj if isinstance(endpoints_obj, list) else []
-                    endpoints_str = ", ".join(endpoints_list) if endpoints_list else "-"
-                    table.add_row(
-                        str(result["name"]),
-                        status_text,
-                        str(result["health"]),
-                        str(result["cpu"]),
-                        str(result["memory"]),
-                        endpoints_str,
-                    )
-                else:
-                    table.add_row(
-                        str(result["name"]),
-                        status_text,
-                        str(result["health"]),
-                        str(result["cpu"]),
-                        str(result["memory"]),
-                        str(result["path"]),
-                    )
+                endpoints_obj = result.get("endpoints", [])
+                endpoints_list: list[str] = endpoints_obj if isinstance(endpoints_obj, list) else []
+                endpoints_str = ", ".join(endpoints_list) if endpoints_list else "-"
+                table.add_row(
+                    str(result["name"]),
+                    status_text,
+                    str(result["health"]),
+                    str(result["cpu"]),
+                    str(result["memory"]),
+                    endpoints_str,
+                )
 
             console.print(table)
 
