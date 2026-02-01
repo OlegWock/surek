@@ -64,6 +64,7 @@ def stop(
 
 def status(
     json_output: bool = typer.Option(False, "--json", help="Output as JSON"),
+    stats: bool = typer.Option(False, "--stats", "-s", help="Include CPU/memory stats (slower)"),
 ) -> None:
     """Show status of all stacks with health and resource usage."""
     try:
@@ -72,15 +73,16 @@ def status(
         results = []
 
         # System status
-        system_status = get_stack_status_detailed("surek-system")
+        system_status = get_stack_status_detailed("surek-system", include_stats=stats)
         system_result: dict[str, object] = {
             "name": "System containers",
             "status": system_status.status_text,
             "health": system_status.health_summary,
-            "cpu": f"{system_status.cpu_percent:.1f}%",
-            "memory": format_bytes(system_status.memory_bytes),
             "endpoints": [],
         }
+        if stats:
+            system_result["cpu"] = f"{system_status.cpu_percent:.1f}%"
+            system_result["memory"] = format_bytes(system_status.memory_bytes)
         results.append(system_result)
 
         # User stacks
@@ -88,19 +90,21 @@ def status(
             stacks = get_available_stacks()
             for stack in stacks:
                 if not stack.valid:
-                    results.append({
+                    result: dict[str, object] = {
                         "name": str(stack.path.parent.name),
                         "status": "Invalid config",
                         "health": "-",
-                        "cpu": "-",
-                        "memory": "-",
                         "endpoints": [],
                         "error": stack.error or "Unknown error",
-                    })
+                    }
+                    if stats:
+                        result["cpu"] = "-"
+                        result["memory"] = "-"
+                    results.append(result)
                     continue
 
                 if stack.config:
-                    stack_status = get_stack_status_detailed(stack.config.name)
+                    stack_status = get_stack_status_detailed(stack.config.name, include_stats=stats)
                     # Expand domains with root
                     endpoints: list[str] = []
                     if stack.config.public:
@@ -112,10 +116,11 @@ def status(
                         "name": stack.config.name,
                         "status": stack_status.status_text,
                         "health": stack_status.health_summary,
-                        "cpu": f"{stack_status.cpu_percent:.1f}%",
-                        "memory": format_bytes(stack_status.memory_bytes),
                         "endpoints": endpoints,
                     }
+                    if stats:
+                        stack_result["cpu"] = f"{stack_status.cpu_percent:.1f}%"
+                        stack_result["memory"] = format_bytes(stack_status.memory_bytes)
                     results.append(stack_result)
         except SurekError:
             pass  # No stacks directory
@@ -127,8 +132,9 @@ def status(
             table.add_column("Stack", style="cyan")
             table.add_column("Status")
             table.add_column("Health")
-            table.add_column("CPU")
-            table.add_column("Memory")
+            if stats:
+                table.add_column("CPU")
+                table.add_column("Memory")
             table.add_column("Endpoints", style="dim")
 
             for result in results:
@@ -145,14 +151,23 @@ def status(
                 endpoints_obj = result.get("endpoints", [])
                 endpoints_list: list[str] = endpoints_obj if isinstance(endpoints_obj, list) else []
                 endpoints_str = ", ".join(endpoints_list) if endpoints_list else "-"
-                table.add_row(
-                    str(result["name"]),
-                    status_text,
-                    str(result["health"]),
-                    str(result["cpu"]),
-                    str(result["memory"]),
-                    endpoints_str,
-                )
+
+                if stats:
+                    table.add_row(
+                        str(result["name"]),
+                        status_text,
+                        str(result["health"]),
+                        str(result.get("cpu", "-")),
+                        str(result.get("memory", "-")),
+                        endpoints_str,
+                    )
+                else:
+                    table.add_row(
+                        str(result["name"]),
+                        status_text,
+                        str(result["health"]),
+                        endpoints_str,
+                    )
 
             console.print(table)
 
@@ -181,7 +196,7 @@ def info(
             raise SurekError("Invalid stack config")
 
         config = stack.config
-        stack_status = get_stack_status_detailed(config.name)
+        stack_status = get_stack_status_detailed(config.name, include_stats=True)
 
         console.print(f"\n[bold]Stack:[/bold] {config.name}")
         console.print(f"[bold]Status:[/bold] {stack_status.status_text}")

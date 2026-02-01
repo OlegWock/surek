@@ -5,7 +5,7 @@ from textual.binding import Binding
 from textual.containers import Container
 from textual.widgets import DataTable, Static
 
-from surek.core.docker import format_bytes, get_stack_status_detailed
+from surek.core.docker import get_stack_status_detailed
 from surek.core.stacks import get_available_stacks
 from surek.exceptions import SurekError
 
@@ -29,7 +29,7 @@ class StacksPane(Container):
         """Initialize the table when mounted."""
         table = self.query_one("#stacks-table", DataTable)
         table.cursor_type = "row"
-        table.add_columns("Stack", "Status", "Health", "CPU", "Memory", "Path")
+        table.add_columns("Stack", "Status", "Health", "Path")
         self.refresh_data()
 
     def refresh_data(self) -> None:
@@ -44,8 +44,6 @@ class StacksPane(Container):
                 "System",
                 system_status.status_text,
                 system_status.health_summary,
-                f"{system_status.cpu_percent:.1f}%",
-                format_bytes(system_status.memory_bytes),
                 "",
                 key="surek-system",
             )
@@ -53,8 +51,6 @@ class StacksPane(Container):
             table.add_row(
                 "System",
                 "? Unknown",
-                "-",
-                "-",
                 "-",
                 "",
                 key="surek-system",
@@ -69,8 +65,6 @@ class StacksPane(Container):
                         str(stack.path.parent.name),
                         "Invalid config",
                         "-",
-                        "-",
-                        "-",
                         str(stack.path.parent.name),
                         key=f"invalid-{stack.path}",
                     )
@@ -82,8 +76,6 @@ class StacksPane(Container):
                         stack.config.name,
                         status.status_text,
                         status.health_summary,
-                        f"{status.cpu_percent:.1f}%",
-                        format_bytes(status.memory_bytes),
                         str(stack.path.parent.name),
                         key=stack.config.name,
                     )

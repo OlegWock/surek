@@ -1,6 +1,7 @@
 """Docker client wrapper and utilities."""
 
 import subprocess
+from concurrent.futures import ThreadPoolExecutor, as_completed
 from dataclasses import dataclass
 from pathlib import Path
 from typing import Any
@@ -82,11 +83,34 @@ class StackStatusDetailed:
     memory_bytes: int
 
 
-def get_stack_status_detailed(stack_name: str) -> StackStatusDetailed:
-    """Get detailed status for a stack including health and resources.
+def _get_container_stats(container: Any) -> tuple[str, float, int]:
+    """Get stats for a single container.
+
+    Args:
+        container: Docker container object.
+
+    Returns:
+        Tuple of (container_id, cpu_percent, memory_bytes).
+    """
+    try:
+        if container.status == "running":
+            stats: dict[str, Any] = container.stats(stream=False)  # type: ignore[assignment]
+            cpu_percent = _calculate_cpu_percent(stats)
+            memory_stats: dict[str, Any] = stats.get("memory_stats", {})
+            memory_bytes = int(memory_stats.get("usage", 0) or 0) if isinstance(memory_stats, dict) else 0
+            return (container.id, cpu_percent, memory_bytes)
+    except Exception:
+        pass
+    return (container.id, 0.0, 0)
+
+
+def get_stack_status_detailed(stack_name: str, include_stats: bool = False) -> StackStatusDetailed:
+    """Get detailed status for a stack including health and optionally resources.
 
     Args:
         stack_name: Name of the stack (Docker Compose project name).
+        include_stats: If True, fetch CPU/memory stats (slower, ~1-2s per container).
+                      Stats are fetched in parallel when enabled.
 
     Returns:
         Detailed status information.
@@ -133,6 +157,17 @@ def get_stack_status_detailed(stack_name: str) -> StackStatusDetailed:
             memory_bytes=0,
         )
 
+    # Fetch stats in parallel if requested
+    stats_by_id: dict[str, tuple[float, int]] = {}
+    if include_stats:
+        running_containers = [c for c in containers if c.status == "running"]
+        if running_containers:
+            with ThreadPoolExecutor(max_workers=min(len(running_containers), 10)) as executor:
+                futures = {executor.submit(_get_container_stats, c): c for c in running_containers}
+                for future in as_completed(futures):
+                    container_id, cpu, mem = future.result()
+                    stats_by_id[container_id] = (cpu, mem)
+
     services: list[ServiceHealth] = []
     total_cpu = 0.0
     total_memory = 0
@@ -148,22 +183,9 @@ def get_stack_status_detailed(stack_name: str) -> StackStatusDetailed:
         if "Health" in state:
             health = state["Health"].get("Status")
 
-        # Get resource usage
-        cpu_percent = 0.0
-        memory_bytes = 0
-        try:
-            if container.status == "running":
-                # TODO: container.stats takes 1-2 seconds for each container, this is too slow. We should not get cpu/memory
-                # by default and include it only when option (add new option for this) is passed. And even when passed, we
-                # should get stats for all containers in parallel, not sequentially
-                # Similarly, for TUI we should print without CPU/Memory by default and fetch it in background and update table once we have it
-                stats: dict[str, Any] = container.stats(stream=False)  # type: ignore[assignment]
-                cpu_percent = _calculate_cpu_percent(stats)
-                memory_stats: dict[str, Any] = stats.get("memory_stats", {})
-                if isinstance(memory_stats, dict):
-                    memory_bytes = int(memory_stats.get("usage", 0) or 0)
-        except Exception:
-            pass
+        # Get resource usage from pre-fetched stats
+        container_id = container.id or ""
+        cpu_percent, memory_bytes = stats_by_id.get(container_id, (0.0, 0))
 
         services.append(
             ServiceHealth(
