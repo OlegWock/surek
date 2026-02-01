@@ -1,109 +1,291 @@
-# Surek Documentation for LLMs
+# Surek v2 Documentation
 
-This document provides comprehensive documentation for Surek, intended for LLM consumption.
+Complete documentation for Surek, the Docker Compose orchestration tool for self-hosted services.
 
 ## Overview
 
-Surek is a Docker Compose orchestration tool for self-hosted services. It provides:
-
-- Automatic reverse proxy configuration via Caddy
+Surek simplifies deploying and managing self-hosted services by automating:
+- Reverse proxy configuration via Caddy with automatic HTTPS
 - Volume management with bind mounts for backup
 - Shared networking across all stacks
 - Environment variable injection with template variables
 - Automated backups to S3-compatible storage
+- Interactive TUI and CLI interfaces
+
+## Installation
+
+```bash
+# Using pip
+pip install surek
+
+# Using uv
+uv add surek
+```
+
+Requirements:
+- Python 3.12+
+- Docker Engine with Compose plugin
+- Domain pointed to server (for HTTPS)
+
+## Quick Start
+
+```bash
+# Initialize a new Surek project
+surek init
+
+# Create a new stack
+surek new
+
+# Deploy system containers (Caddy, Portainer, Netdata)
+surek system start
+
+# Deploy a stack
+surek deploy my-stack
+
+# Check status
+surek status
+
+# Launch interactive TUI
+surek
+```
 
 ## Commands
 
 ### Core Commands
 
-- `surek deploy <stack>` - Deploy a stack (pull sources, transform compose, start containers)
-- `surek start <stack>` - Start an already deployed stack
-- `surek stop <stack>` - Stop a running stack
-- `surek status` - Show status of all stacks
-- `surek info <stack>` - Show detailed stack information
-- `surek logs <stack> [service]` - View logs
+| Command | Description |
+|---------|-------------|
+| `surek` | Launch interactive TUI |
+| `surek deploy <stack>` | Deploy a stack (pull sources, transform compose, start) |
+| `surek start <stack>` | Start an already deployed stack |
+| `surek stop <stack>` | Stop a running stack |
+| `surek status` | Show status of all stacks with health/resources |
+| `surek info <stack>` | Show detailed stack information |
+| `surek logs <stack> [service]` | View logs for stack or service |
+| `surek validate <path>` | Validate a stack configuration file |
 
 ### System Commands
 
-- `surek system start` - Create Docker network and start system containers
-- `surek system stop` - Stop system containers
+| Command | Description |
+|---------|-------------|
+| `surek system start` | Create Docker network and start system containers |
+| `surek system stop` | Stop system containers |
 
 ### Backup Commands
 
-- `surek backup list` - List all backups in S3
-- `surek backup run` - Trigger immediate backup
-- `surek backup restore` - Restore from backup
+| Command | Description |
+|---------|-------------|
+| `surek backup` | List all backups (alias for `backup list`) |
+| `surek backup list` | List all backups in S3 |
+| `surek backup run` | Trigger immediate backup |
+| `surek backup restore` | Restore from backup (interactive or with --id) |
 
-### Configuration Commands
+### Setup Commands
 
-- `surek init` - Interactive wizard to create surek.yml
-- `surek new` - Interactive wizard to create a new stack
-- `surek validate <path>` - Validate a stack configuration
+| Command | Description |
+|---------|-------------|
+| `surek init` | Interactive wizard to create surek.yml |
+| `surek init --git-only` | Only add surek-data to .gitignore |
+| `surek new` | Interactive wizard to create a new stack |
+
+### Options
+
+| Option | Description |
+|--------|-------------|
+| `--version, -v` | Show version |
+| `--help-llm` | Print this documentation |
+| `--help` | Show help |
 
 ## Configuration Files
 
-### surek.yml (Main Configuration)
+### Main Configuration (`surek.yml`)
+
+Location: Current working directory
 
 ```yaml
+# Required: Root domain for all services
 root_domain: example.com
-default_auth: admin:password
 
-backup:  # Optional
-  password: encryption_password
-  s3_endpoint: s3.example.com
-  s3_bucket: my-backups
-  s3_access_key: ACCESS_KEY
-  s3_secret_key: SECRET_KEY
+# Required: Default auth in "user:password" format
+default_auth: admin:${SUREK_PASSWORD}
 
-github:  # Optional
-  pat: github_personal_access_token
+# Optional: S3 backup configuration
+backup:
+  password: ${BACKUP_PASSWORD}      # GPG encryption password
+  s3_endpoint: s3.example.com       # S3 endpoint URL
+  s3_bucket: my-backups             # Bucket name
+  s3_access_key: ${AWS_ACCESS_KEY}
+  s3_secret_key: ${AWS_SECRET_KEY}
 
-system_services:  # Optional
-  portainer: true
-  netdata: true
+# Optional: GitHub access for private repos
+github:
+  pat: ${GITHUB_PAT}
+
+# Optional: System service configuration
+system_services:
+  portainer: true   # Enable/disable Portainer
+  netdata: true     # Enable/disable Netdata
+
+# Optional: Notification settings (reserved for future use)
+notifications:
+  webhook_url: https://hooks.example.com/xxx
 ```
 
-### surek.stack.yml (Stack Configuration)
+### Stack Configuration (`surek.stack.yml`)
+
+Location: `stacks/<stack-name>/surek.stack.yml`
 
 ```yaml
+# Required: Unique stack name
 name: my-stack
+
+# Required: Source of stack files
 source:
-  type: local  # or github with slug: owner/repo#ref
+  type: local  # Files in same directory
+  # OR
+  type: github
+  slug: owner/repo#branch  # Format: owner/repo or owner/repo#ref
+
+# Optional: Path to compose file (default: ./docker-compose.yml)
 compose_file_path: ./docker-compose.yml
 
+# Optional: Public endpoints for reverse proxy
 public:
-  - domain: app.<root>
-    target: myapp:8080
-    auth: <default_auth>  # Optional
+  - domain: app.<root>           # Domain (supports variables)
+    target: myapp:8080           # service:port
+    auth: <default_auth>         # Optional: basic auth
 
+# Optional: Environment variables
 env:
-  shared:
+  shared:                        # Added to all services
     - TZ=UTC
-  by_container:
+  by_container:                  # Per-service variables
     myapp:
       - DATABASE_URL=postgres://...
 
+# Optional: Backup exclusion
 backup:
   exclude_volumes:
-    - cache_data
+    - cache_data                 # Volumes to skip for backup
 ```
 
 ## Template Variables
 
-- `<root>` - root_domain from surek.yml
-- `<default_auth>` - default_auth (user:password)
-- `<default_user>` - username from default_auth
-- `<default_password>` - password from default_auth
-- `<backup_password>` - backup encryption password
-- `<backup_s3_endpoint>` - S3 endpoint URL
-- `<backup_s3_bucket>` - S3 bucket name
-- `<backup_s3_access_key>` - S3 access key
-- `<backup_s3_secret_key>` - S3 secret key
+Use these in `surek.stack.yml` (in `public.domain`, `public.auth`, and `env` sections):
 
-## Environment Variable Expansion
+| Variable | Description |
+|----------|-------------|
+| `<root>` | Root domain from surek.yml |
+| `<default_auth>` | Default auth (user:password) |
+| `<default_user>` | Username from default_auth |
+| `<default_password>` | Password from default_auth |
+| `<backup_password>` | Backup encryption password |
+| `<backup_s3_endpoint>` | S3 endpoint URL |
+| `<backup_s3_bucket>` | S3 bucket name |
+| `<backup_s3_access_key>` | S3 access key |
+| `<backup_s3_secret_key>` | S3 secret key |
 
-Use `${VAR_NAME}` syntax to reference environment variables in configuration files.
+## Environment Variables
 
----
+Use `${VAR_NAME}` syntax in any configuration file to reference environment variables:
 
-*Full documentation will be added in a future release.*
+```yaml
+default_auth: admin:${SUREK_PASSWORD}
+backup:
+  password: ${BACKUP_ENCRYPTION_KEY}
+```
+
+## Directory Structure
+
+```
+project/
+├── surek.yml              # Main configuration
+├── stacks/                # User-defined stacks
+│   └── my-app/
+│       ├── surek.stack.yml
+│       ├── docker-compose.yml
+│       └── ...
+└── surek-data/            # Generated at runtime (gitignore this)
+    ├── projects/          # Deployed stack files
+    │   └── my-app/
+    │       └── docker-compose.surek.yml
+    └── volumes/           # Bound volumes for backup
+        └── my-app/
+            └── data/
+```
+
+## System Containers
+
+Surek manages these system services:
+
+| Service | Purpose | Domain |
+|---------|---------|--------|
+| Caddy | Reverse proxy with auto-HTTPS | - |
+| Portainer | Container management UI | portainer.<root> |
+| Netdata | Server monitoring | netdata.<root> |
+| Backup | Automated S3 backups | - |
+
+### Backup Schedule
+
+| Type | Schedule | Retention |
+|------|----------|-----------|
+| Daily | 2:00 AM | 7 days |
+| Weekly | 3:00 AM Monday | 60 days |
+| Monthly | 4:00 AM 1st | 730 days |
+
+## How Deployment Works
+
+When you run `surek deploy <stack>`:
+
+1. **Source Resolution**: Downloads from GitHub (if configured) or uses local files
+2. **File Merging**: Copies stack files to project directory
+3. **Compose Transformation**:
+   - Adds `surek` network to all services
+   - Converts volumes to bind mounts for backup
+   - Adds Caddy labels for reverse proxy
+   - Injects environment variables
+   - Hashes passwords for basic auth
+4. **Container Startup**: Runs `docker compose up -d --build`
+
+## TUI Keyboard Shortcuts
+
+| Key | Action |
+|-----|--------|
+| `Tab` | Switch between Stacks/Backups |
+| `r` | Refresh data |
+| `d` | Deploy selected stack |
+| `s` | Start selected stack |
+| `x` | Stop selected stack |
+| `i` | Show stack info |
+| `b` | Run backup (Backups tab) |
+| `q` | Quit |
+
+## Troubleshooting
+
+### Docker connection issues
+Ensure Docker is running and your user has permission to access the Docker socket.
+
+### Network not found
+Run `surek system start` to create the Surek network before deploying stacks.
+
+### Certificate issues
+Caddy automatically provisions Let's Encrypt certificates. Ensure ports 80 and 443 are open and your domain points to the server.
+
+### Backup failures
+Check `surek-data/backup_failures.json` for error details. Ensure S3 credentials are correct and the bucket exists.
+
+## Backward Compatibility
+
+Surek v2 is backward compatible with v1 configuration files. All existing `surek.yml` and `surek.stack.yml` files work without modification.
+
+New v2 features:
+- `${ENV_VAR}` syntax for environment variables
+- `system_services` section to disable Portainer/Netdata
+- Interactive TUI
+- `surek init`, `surek new` commands
+- `surek info`, `surek logs` commands
+- Backup listing and restore commands
+
+## License
+
+GPL-3.0-or-later

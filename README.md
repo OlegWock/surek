@@ -1,145 +1,202 @@
 # Surek
 
-Surek is a utility built on top of Docker Compose to make managing self-hosted services easier.
+Surek is a Docker Compose orchestration tool for self-hosted services.
 
-It manages Caddy reverse proxy for your containers, can back up Docker volumes, and comes with Portainer and Netdata to easily manage and monitor your server.
+It manages Caddy reverse proxy for your containers with automatic HTTPS, backs up Docker volumes to S3-compatible storage, and includes Portainer and Netdata for container management and server monitoring.
 
-## Install
+## Features
 
-Surek requires that you have Docker and Node.js (tested with v22) installed. It also assumes you have a domain pointed to your server.
+- **Reverse proxy**: Automatic Caddy configuration with Let's Encrypt HTTPS
+- **Volume backups**: Scheduled backups to S3-compatible storage with encryption
+- **Shared networking**: All stacks on a common network for easy inter-service communication
+- **Template variables**: Use `<root>`, `<default_auth>`, etc. in stack configs
+- **Environment variables**: Support for `${VAR}` syntax in all config files
+- **Interactive TUI**: Terminal UI for managing stacks and backups
+- **GitHub integration**: Pull stacks from public or private repositories
 
-Run this command to install Surek. If your Docker installation requires using `sudo`, install Surek with `sudo` too.
+## Installation
 
-```
-npm install -g surek
-```
+Surek requires Python 3.12+, Docker with Compose plugin, and a domain pointed to your server.
 
-## Usage
+```bash
+# Using pip
+pip install surek
 
-Create a folder where you wish to keep your config and service definitions (stacks). If you intend to push this folder into git, add this line to `.gitignore`
-
-```
-surek-data
-```
-
-Create a file named `surek.yml`. This is main config.
-
-```yaml
-# Root domain 
-root_domain: example.com
-# Used for Netdata, also can be used in stack configs
-default_auth: surek:test42
-# Optional. Backup volumes into S3 compatible storage
-backup:
-  password: "test42"
-  s3_endpoint: "s3.eu-central-003.backblazeb2.com"
-  s3_bucket: "surek-backup"
-  s3_access_key: "beep"
-  s3_secret_key: "boop"
-# Optional. GitHub personal access token. Enables pulling stacks from github (including private repositories)
-github:
-  pat: secret
+# Using uv (recommended)
+uv tool install surek
 ```
 
-With central config in place, you can start system containers. Those include Caddy, Portainer, Netdata and everything else Surek needs to work properly.
+If your Docker requires `sudo`, install and run Surek with `sudo` as well.
 
-```
-# Run with sudo if your Docker installation requires it
+## Quick Start
+
+```bash
+# Initialize a new project (creates surek.yml)
+surek init
+
+# Create a new stack interactively
+surek new
+
+# Start system containers (Caddy, Portainer, Netdata)
 surek system start
-```
 
-After system containers started, you can verify their status with command:
+# Deploy a stack
+surek deploy my-stack
 
-```
+# Check status
 surek status
+
+# Launch interactive TUI
+surek
 ```
 
-Visit `portainer.<root domain>` to finish Portainer installation in 5 minutes, or it will lock you out and require removing volume and re-installing it. 
+## Configuration
 
-Besides Portainer, there will be a `netdata.<root domain>` to monitor your server.
+### Main Config (`surek.yml`)
 
-Next are stacks. Stack is a collection of services that are related. In Surek, stacks are stored in the `stacks` folder (create it!) and defined by the `surek.stack.yml` file. This file defines the location of the compose file and other stack parameters. 
+Create this file in your project directory:
 
 ```yaml
-name: any-name-you-want
-# All files we need are already here. Convenient for services that have their Docker images in the registry
+# Required: Root domain for all services
+root_domain: example.com
+
+# Required: Default auth in "user:password" format
+default_auth: admin:${SUREK_PASSWORD}
+
+# Optional: S3 backup configuration
+backup:
+  password: ${BACKUP_PASSWORD}
+  s3_endpoint: s3.example.com
+  s3_bucket: my-backups
+  s3_access_key: ${AWS_ACCESS_KEY}
+  s3_secret_key: ${AWS_SECRET_KEY}
+
+# Optional: GitHub access for private repos
+github:
+  pat: ${GITHUB_PAT}
+
+# Optional: Enable/disable system services
+system_services:
+  portainer: true
+  netdata: true
+```
+
+### Stack Config (`stacks/<name>/surek.stack.yml`)
+
+```yaml
+name: my-app
+
+# Source: local files or GitHub
 source:
   type: local
-  # Or pull service from Github
+  # OR
   # type: github
-  # #ref is git reference (commit, tag, branch, etc) and is optional, will use HEAD by default
-  # slug: OlegWock/repo-name#ref
+  # slug: owner/repo#branch
 
-# Path to compose file relative to stack config in case of local source, or relative to repo root for github sources
-compose_file_path: "./docker-compose.yml"
-# Optional. Services to expose as subdomains
+# Path to compose file (default: ./docker-compose.yml)
+compose_file_path: ./docker-compose.yml
+
+# Public endpoints for reverse proxy
 public:
-  # You can use <root> and other variables in configs (about them later)
-  - domain: owncloud.<root>
-    target: owncloud:8080 # <service name>:<port inside container>
-    auth: admin:password123 # Optional. Adds Basic HTTP auth to subdomain
-# Optional. Environment variables to add to particular (or all) container
+  - domain: app.<root>
+    target: myapp:8080
+    auth: <default_auth>  # Optional: basic auth
+
+# Environment variables
 env:
-  by_container:
-    owncloud: # service name
-      - OWNCLOUD_DOMAIN=owncloud.<root>
-      - OWNCLOUD_TRUSTED_DOMAINS=owncloud.<root>
   shared:
-    - EXAMPLE=1
-# Optional. Exclude certain volumes from backup
+    - TZ=UTC
+  by_container:
+    myapp:
+      - DATABASE_URL=postgres://...
+
+# Backup settings
 backup:
   exclude_volumes:
-    - volume-name
+    - cache_data
 ```
 
-And the last important piece is the compose file itself. You write compose files as you would normally, except a few specifics.
+## Commands
 
-* You don't need to expose any ports from the container
-* You should use named volumes (not bind mounts) if you want them to be backuped. It's also important to not set any parameters for these volumes (like driver or driver parameters), as they will be overwritten by Surek.
-* All services (from all stacks) will be placed on the same internal network, so if you have any code depending on the container hostname (e.g., connecting a database to an app), make sure you set the hostname explicitly or use a unique service name for them to avoid collisions with common services (like MySQL, Redis, etc.) from other stacks.
+| Command | Description |
+|---------|-------------|
+| `surek` | Launch interactive TUI |
+| `surek init` | Create surek.yml interactively |
+| `surek new` | Create a new stack interactively |
+| `surek deploy <stack>` | Deploy a stack |
+| `surek start <stack>` | Start an already deployed stack |
+| `surek stop <stack>` | Stop a running stack |
+| `surek status` | Show status of all stacks |
+| `surek info <stack>` | Show detailed stack information |
+| `surek logs <stack> [service]` | View stack logs |
+| `surek validate <path>` | Validate a stack config |
+| `surek system start` | Start system containers |
+| `surek system stop` | Stop system containers |
+| `surek backup list` | List all backups |
+| `surek backup run` | Trigger immediate backup |
+| `surek backup restore` | Restore from backup |
 
-With that finished, you can start stack with this command:
+## Template Variables
+
+Use these in stack configs (`public.domain`, `public.auth`, `env`):
+
+| Variable | Description |
+|----------|-------------|
+| `<root>` | Root domain from surek.yml |
+| `<default_auth>` | Default auth (user:password) |
+| `<default_user>` | Username from default_auth |
+| `<default_password>` | Password from default_auth |
+| `<backup_password>` | Backup encryption password |
+| `<backup_s3_endpoint>` | S3 endpoint URL |
+| `<backup_s3_bucket>` | S3 bucket name |
+| `<backup_s3_access_key>` | S3 access key |
+| `<backup_s3_secret_key>` | S3 secret key |
+
+## Directory Structure
 
 ```
-surek deploy <stack name from config>
+project/
+├── surek.yml              # Main configuration
+├── stacks/                # User-defined stacks
+│   └── my-app/
+│       ├── surek.stack.yml
+│       └── docker-compose.yml
+└── surek-data/            # Generated (add to .gitignore)
+    ├── projects/          # Deployed stack files
+    └── volumes/           # Bound volumes for backup
 ```
 
-This will deploy the stack. What happens under the hood is:
+## Writing Compose Files
 
-1. If using GitHub, Surek will pull the latest version into a temporary folder.
-2. Surek will copy all files from the stack folder (the folder where `surek.stack.yml` is stored) into a temporary folder (overwriting files and merging folders). If you need to overwrite or add any files to the stack pulled from the GitHub repo, this is the way.
-3. Surek will read the compose file (by path specified in stack config), transform it by adding containers to the network, updating volume configuration, etc., and save it as `docker-compose.surek.yml`.
-4. Docker Compose will be used to deploy the stack.
+When writing Docker Compose files for Surek:
 
-To stop stack:
+- **No port exposure needed**: Caddy handles routing via labels
+- **Use named volumes**: For backup support (don't set driver options)
+- **Unique service names**: All stacks share a network, avoid name collisions
 
-```
-surek stop <stack name>
-```
+## System Services
 
-To start a stack again without re-pulling and transforming the compose file:
+| Service | Purpose | Domain |
+|---------|---------|--------|
+| Caddy | Reverse proxy with auto-HTTPS | - |
+| Portainer | Container management UI | portainer.\<root\> |
+| Netdata | Server monitoring | netdata.\<root\> |
+| Backup | Scheduled S3 backups | - |
 
-```
-surek start <stack name>
-```
+Visit `portainer.<root>` within 5 minutes of first start to complete setup.
 
 ## Examples
 
-You can find example stacks in the [example-stacks](example-stacks/) folder.
+See the [example-stacks](example-stacks/) folder for sample configurations.
 
-## Variables
+## LLM Integration
 
-In Stack config, it's possible to use variables in `public.domain`, `public.auth`, and `env` sections. List of available variables:
+For AI assistants, run `surek --help-llm` to get complete documentation.
 
-* `<root>` – root domain, as defined in `surek.yml`.
-* `<default_auth>` – shortcut for `<default_user>:<default_password>`.
-* `<default_user>` – default user, as defined in `surek.yml`.
-* `<default_password>` – default password, as defined in `surek.yml`.
+## Backward Compatibility
 
-And those are available only if you have `backup` configured in `surek.yml`:
+Surek v2 is fully backward compatible with v1 configuration files. All existing `surek.yml` and `surek.stack.yml` files work without modification.
 
-* `<backup_password>`
-* `<backup_s3_endpoint>`
-* `<backup_s3_bucket>`
-* `<backup_s3_access_key>`
-* `<backup_s3_secret_key>`
+## License
+
+GPL-3.0-or-later
