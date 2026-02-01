@@ -8,7 +8,7 @@ from surek.tui.screens.backups import BackupsPane
 from surek.tui.screens.stacks import StacksPane
 
 
-class SurekApp(App):
+class SurekApp(App[None]):
     """Main Surek TUI application."""
 
     TITLE = "Surek"

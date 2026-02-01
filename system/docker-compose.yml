@@ -1,5 +1,3 @@
-version: "3.7"
-
 services:
   caddy:
     image: lucaslorentz/caddy-docker-proxy:ci-alpine
@@ -40,7 +38,7 @@ services:
       - /etc/os-release:/host/etc/os-release:ro
       - /var/log:/host/var/log:ro
       - /var/run/docker.sock:/var/run/docker.sock:ro
-  
+
   backup:
     image: offen/docker-volume-backup:latest
     restart: unless-stopped
@@ -51,7 +49,6 @@ services:
       - ./backup-monthly.env:/etc/dockervolumebackup/conf.d/backup-monthly.env
       - /etc/timezone:/etc/timezone:ro
       - /etc/localtime:/etc/localtime:ro
-    
 
 volumes:
   caddy_data: {}

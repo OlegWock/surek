@@ -1,16 +1,13 @@
 """Tests for GitHub operations."""
 
-import json
 from pathlib import Path
 
 import pytest
 
 from surek.core.github import (
-    get_cache_file,
     get_cached_commit,
     save_cached_commit,
 )
-from surek.models.config import SurekConfig
 from surek.models.stack import GitHubSource
 
 

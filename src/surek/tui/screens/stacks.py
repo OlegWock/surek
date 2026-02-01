@@ -92,12 +92,13 @@ class StacksPane(Container):
 
     def _get_selected_stack(self) -> str | None:
         """Get the name of the currently selected stack."""
-        table = self.query_one("#stacks-table", DataTable)
+        table: DataTable[str] = self.query_one("#stacks-table", DataTable)
         if table.cursor_row is not None:
             row_key = table.get_row_at(table.cursor_row)
             if row_key:
                 # First column is the name
-                return str(table.get_cell_at((table.cursor_row, 0)))
+                coord = (table.cursor_row, 0)
+                return str(table.get_cell_at(coord))  # type: ignore[arg-type]
         return None
 
     def action_deploy(self) -> None:
@@ -143,10 +144,9 @@ class StacksPane(Container):
             from surek.core.stacks import get_stack_by_name
 
             if stack_name == "System":
-                from surek.core.config import load_config, load_stack_config
+                from surek.core.config import load_config
                 from surek.core.deploy import deploy_system_stack
                 from surek.core.docker import ensure_surek_network
-                from surek.utils.paths import get_system_dir
 
                 config = load_config()
                 ensure_surek_network()
@@ -195,6 +195,8 @@ class StacksPane(Container):
 
     def action_info(self) -> None:
         """Show info for the selected stack."""
+        # TODO: pressing `i` on stack shows simple notification, while we should redirect user to separate screen with
+        # detailed info about stack, services in it, associated volumes and their stats, and stream logs for stack
         stack_name = self._get_selected_stack()
         if not stack_name or stack_name == "System":
             return

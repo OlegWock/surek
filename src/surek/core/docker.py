@@ -3,7 +3,7 @@
 import subprocess
 from dataclasses import dataclass
 from pathlib import Path
-from typing import Optional
+from typing import Any
 
 import docker
 from docker.errors import DockerException
@@ -16,7 +16,7 @@ SUREK_NETWORK = "surek"
 DEFAULT_LABELS = {"surek.managed": "true"}
 
 # Singleton Docker client
-_docker_client: Optional[docker.DockerClient] = None
+_docker_client: docker.DockerClient | None = None
 
 
 def get_docker_client() -> docker.DockerClient:
@@ -65,7 +65,7 @@ class ServiceHealth:
 
     name: str
     status: str  # "running", "exited", "paused", etc.
-    health: Optional[str]  # "healthy", "unhealthy", "starting", None
+    health: str | None  # "healthy", "unhealthy", "starting", None
     cpu_percent: float
     memory_bytes: int
 
@@ -143,7 +143,7 @@ def get_stack_status_detailed(stack_name: str) -> StackStatusDetailed:
         service_name = container.labels.get("com.docker.compose.service", container.name)
 
         # Get health status
-        health: Optional[str] = None
+        health: str | None = None
         state = container.attrs.get("State", {})
         if "Health" in state:
             health = state["Health"].get("Status")
@@ -153,9 +153,15 @@ def get_stack_status_detailed(stack_name: str) -> StackStatusDetailed:
         memory_bytes = 0
         try:
             if container.status == "running":
-                stats = container.stats(stream=False)
+                # TODO: container.stats takes 1-2 seconds for each container, this is too slow. We should not get cpu/memory
+                # by default and include it only when option (add new option for this) is passed. And even when passed, we
+                # should get stats for all containers in parallel, not sequentially
+                # Similarly, for TUI we should print without CPU/Memory by default and fetch it in background and update table once we have it
+                stats: dict[str, Any] = container.stats(stream=False)  # type: ignore[assignment]
                 cpu_percent = _calculate_cpu_percent(stats)
-                memory_bytes = stats.get("memory_stats", {}).get("usage", 0)
+                memory_stats: dict[str, Any] = stats.get("memory_stats", {})
+                if isinstance(memory_stats, dict):
+                    memory_bytes = int(memory_stats.get("usage", 0) or 0)
         except Exception:
             pass
 
@@ -209,7 +215,7 @@ def get_stack_status_detailed(stack_name: str) -> StackStatusDetailed:
     )
 
 
-def _calculate_cpu_percent(stats: dict) -> float:
+def _calculate_cpu_percent(stats: dict[str, Any]) -> float:
     """Calculate CPU percentage from Docker stats.
 
     Args:
@@ -243,7 +249,7 @@ def run_docker_compose(
     compose_file: Path,
     project_dir: Path,
     command: str,
-    args: Optional[list[str]] = None,
+    args: list[str] | None = None,
     capture_output: bool = False,
     silent: bool = False,
 ) -> str:

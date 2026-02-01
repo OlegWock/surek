@@ -3,7 +3,6 @@
 import shutil
 import tempfile
 from pathlib import Path
-from typing import Optional
 
 import typer
 from rich.console import Console
@@ -44,7 +43,7 @@ def list_backups_cmd(
 
         if not config.backup:
             console.print("[yellow]Backup is not configured in surek.yml[/yellow]")
-            raise typer.Exit(1)
+            raise typer.Exit(1) from None
 
         backups = list_backups(config.backup)
 
@@ -93,7 +92,7 @@ def list_backups_cmd(
 
     except SurekError as e:
         console.print(f"[red]Error:[/red] {e}")
-        raise typer.Exit(1)
+        raise typer.Exit(1) from None
 
 
 @app.command(name="run")
@@ -108,27 +107,27 @@ def run_backup(
 
         if not config.backup:
             console.print("[yellow]Backup is not configured in surek.yml[/yellow]")
-            raise typer.Exit(1)
+            raise typer.Exit(1) from None
 
         if backup_type not in ("daily", "weekly", "monthly"):
             console.print(f"[red]Invalid backup type: {backup_type}[/red]")
             console.print("Valid types: daily, weekly, monthly")
-            raise typer.Exit(1)
+            raise typer.Exit(1) from None
 
         trigger_backup(backup_type)
 
     except (SurekError, BackupError) as e:
         console.print(f"[red]Error:[/red] {e}")
-        raise typer.Exit(1)
+        raise typer.Exit(1) from None
 
 
 @app.command(name="restore")
 def restore_backup(
-    backup_id: Optional[str] = typer.Option(
+    backup_id: str | None = typer.Option(
         None, "--id", help="Backup filename to restore"
     ),
-    stack: Optional[str] = typer.Option(None, "--stack", help="Stack to restore"),
-    volume: Optional[str] = typer.Option(
+    stack: str | None = typer.Option(None, "--stack", help="Stack to restore"),
+    volume: str | None = typer.Option(
         None, "--volume", help="Specific volume to restore"
     ),
 ) -> None:
@@ -138,14 +137,14 @@ def restore_backup(
 
         if not config.backup:
             console.print("[yellow]Backup is not configured in surek.yml[/yellow]")
-            raise typer.Exit(1)
+            raise typer.Exit(1) from None
 
         # Interactive mode if no backup_id
         if backup_id is None:
             backups = list_backups(config.backup)
             if not backups:
                 console.print("No backups found")
-                raise typer.Exit(1)
+                raise typer.Exit(1) from None
 
             console.print("\n[bold]Available backups:[/bold]")
             for i, b in enumerate(backups[:20], 1):
@@ -164,7 +163,7 @@ def restore_backup(
                 backup_id = backups[idx].name
             except ValueError:
                 console.print("[red]Invalid selection[/red]")
-                raise typer.Exit(1)
+                raise typer.Exit(1) from None
 
         console.print(f"\nRestoring from backup: {backup_id}")
 
@@ -232,4 +231,4 @@ def restore_backup(
 
     except (SurekError, BackupError) as e:
         console.print(f"[red]Error:[/red] {e}")
-        raise typer.Exit(1)
+        raise typer.Exit(1) from None

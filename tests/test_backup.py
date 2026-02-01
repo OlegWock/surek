@@ -1,13 +1,10 @@
 """Tests for backup operations."""
 
-import json
 from pathlib import Path
 
 import pytest
 
 from surek.core.backup import (
-    BackupFailure,
-    get_failure_log_path,
     get_recent_failures,
     load_failures,
     record_backup_failure,

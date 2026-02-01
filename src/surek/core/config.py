@@ -1,7 +1,6 @@
 """Configuration loading for Surek."""
 
 from pathlib import Path
-from typing import Optional
 
 import yaml
 from pydantic import ValidationError
@@ -12,7 +11,7 @@ from surek.models.stack import StackConfig
 from surek.utils.env import expand_env_vars_in_dict
 
 
-def load_config(config_path: Optional[Path] = None) -> SurekConfig:
+def load_config(config_path: Path | None = None) -> SurekConfig:
     """Load and validate the main Surek configuration.
 
     Args:
@@ -99,7 +98,7 @@ def load_stack_config(path: Path) -> StackConfig:
         ) from e
 
 
-def _find_config_file() -> Optional[Path]:
+def _find_config_file() -> Path | None:
     """Find the Surek config file in the current directory.
 
     Returns:

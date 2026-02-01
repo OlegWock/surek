@@ -1,7 +1,7 @@
 """Pydantic models for stack configuration (surek.stack.yml)."""
 
 import re
-from typing import Annotated, Literal, Optional, Union
+from typing import Annotated, Literal
 
 from pydantic import BaseModel, Field, field_validator
 
@@ -54,7 +54,7 @@ class GitHubSource(BaseModel):
 
 
 # Discriminated union for source types
-Source = Annotated[Union[LocalSource, GitHubSource], Field(discriminator="type")]
+Source = Annotated[LocalSource | GitHubSource, Field(discriminator="type")]
 
 
 class PublicEndpoint(BaseModel):
@@ -62,7 +62,7 @@ class PublicEndpoint(BaseModel):
 
     domain: str
     target: str = Field(..., description="Format: 'service:port' or 'service' (default port 80)")
-    auth: Optional[str] = Field(
+    auth: str | None = Field(
         None, description="Format: 'user:password' or '<default_auth>'"
     )
 
@@ -99,7 +99,7 @@ class StackConfig(BaseModel):
     source: Source
     compose_file_path: str = "./docker-compose.yml"
     public: list[PublicEndpoint] = Field(default_factory=list)
-    env: Optional[EnvConfig] = None
+    env: EnvConfig | None = None
     backup: BackupExcludeConfig = Field(default_factory=BackupExcludeConfig)
 
     @field_validator("name")

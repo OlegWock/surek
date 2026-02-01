@@ -42,7 +42,6 @@ class TestReadComposeFile:
         compose_file = tmp_path / "docker-compose.yml"
         compose_file.write_text(
             dedent("""
-            version: '3.8'
             services:
               web:
                 image: nginx
@@ -167,9 +166,7 @@ class TestTransformComposeFile:
         # Should remain unchanged
         assert result["volumes"]["data"]["driver"] == "custom"
 
-    def test_public_endpoint_labels(
-        self, surek_config: SurekConfig, tmp_path: Path
-    ) -> None:
+    def test_public_endpoint_labels(self, surek_config: SurekConfig, tmp_path: Path) -> None:
         """Test that Caddy labels are added for public endpoints."""
         stack_config = StackConfig(
             name="test-stack",
@@ -193,9 +190,7 @@ class TestTransformComposeFile:
         assert labels["caddy"] == "app.example.com"
         assert "{{upstreams 8080}}" in labels["caddy.reverse_proxy"]
 
-    def test_public_endpoint_with_auth(
-        self, surek_config: SurekConfig, tmp_path: Path
-    ) -> None:
+    def test_public_endpoint_with_auth(self, surek_config: SurekConfig, tmp_path: Path) -> None:
         """Test that basic auth labels are added."""
         stack_config = StackConfig(
             name="test-stack",
@@ -221,9 +216,7 @@ class TestTransformComposeFile:
         # Password should be bcrypt hashed and escaped
         assert "$$" in labels["caddy.basic_auth.admin"]
 
-    def test_missing_service_error(
-        self, surek_config: SurekConfig, tmp_path: Path
-    ) -> None:
+    def test_missing_service_error(self, surek_config: SurekConfig, tmp_path: Path) -> None:
         """Test error when public endpoint references missing service."""
         stack_config = StackConfig(
             name="test-stack",
@@ -245,9 +238,7 @@ class TestTransformComposeFile:
                 transform_compose_file(spec, stack_config, surek_config)
             assert "nonexistent" in str(exc_info.value)
 
-    def test_environment_injection(
-        self, surek_config: SurekConfig, tmp_path: Path
-    ) -> None:
+    def test_environment_injection(self, surek_config: SurekConfig, tmp_path: Path) -> None:
         """Test that environment variables are injected."""
         stack_config = StackConfig(
             name="test-stack",

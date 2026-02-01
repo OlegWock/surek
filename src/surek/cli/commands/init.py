@@ -1,7 +1,6 @@
 """Init and new commands for creating Surek configurations."""
 
 from pathlib import Path
-from typing import Optional
 
 import typer
 import yaml
@@ -27,10 +26,10 @@ def init_command(
 
     if not default_password:
         console.print("[red]Password cannot be empty[/red]")
-        raise typer.Exit(1)
+        raise typer.Exit(1) from None
 
     configure_backup = Confirm.ask("Configure S3 backup?", default=False)
-    backup_config: Optional[dict[str, str]] = None
+    backup_config: dict[str, str] | None = None
     if configure_backup:
         backup_config = {
             "password": Prompt.ask("Backup encryption password", password=True),
@@ -41,7 +40,7 @@ def init_command(
         }
 
     configure_github = Confirm.ask("Configure GitHub access?", default=False)
-    github_config: Optional[dict[str, str]] = None
+    github_config: dict[str, str] | None = None
     if configure_github:
         github_config = {"pat": Prompt.ask("GitHub Personal Access Token", password=True)}
 
@@ -57,10 +56,11 @@ def init_command(
 
     # Write files
     config_path = Path("surek.yml")
-    if config_path.exists():
-        if not Confirm.ask("surek.yml already exists. Overwrite?", default=False):
-            console.print("[yellow]Aborted[/yellow]")
-            raise typer.Exit(0)
+    if config_path.exists() and not Confirm.ask(
+        "surek.yml already exists. Overwrite?", default=False
+    ):
+        console.print("[yellow]Aborted[/yellow]")
+        raise typer.Exit(0)
 
     with open(config_path, "w") as f:
         yaml.dump(config, f, default_flow_style=False, sort_keys=False)
@@ -73,10 +73,22 @@ def init_command(
 
 def new_command() -> None:
     """Create a new stack interactively."""
+    # Load root domain from config if available
+    root_domain = "example.com"
+    config_path = Path("surek.yml")
+    if config_path.exists():
+        try:
+            with open(config_path) as f:
+                surek_config = yaml.safe_load(f)
+                if surek_config and "root_domain" in surek_config:
+                    root_domain = surek_config["root_domain"]
+        except Exception:
+            pass
+
     name = Prompt.ask("Stack name")
     if not name:
         console.print("[red]Stack name cannot be empty[/red]")
-        raise typer.Exit(1)
+        raise typer.Exit(1) from None
 
     source_type = Prompt.ask("Source type", choices=["local", "github"], default="local")
 
@@ -87,15 +99,29 @@ def new_command() -> None:
     compose_path = Prompt.ask("Compose file path", default="./docker-compose.yml")
 
     # Public endpoints
-    public: list[dict[str, Optional[str]]] = []
-    while Confirm.ask("Add a public endpoint?", default=len(public) == 0):
-        domain = Prompt.ask("Domain (e.g., app.<root>)")
+    public: list[dict[str, str | None]] = []
+    endpoint_num = 1
+    while True:
+        if endpoint_num == 1:
+            prompt = "Add a public endpoint?"
+        else:
+            prompt = f"Add another public endpoint? ({len(public)} configured)"
+
+        if not Confirm.ask(prompt, default=(endpoint_num == 1)):
+            break
+
+        console.print(f"[dim]Tip: Use <root> for domain, e.g., 'app' becomes 'app.{root_domain}'[/dim]")
+        subdomain = Prompt.ask("Subdomain (without .<root>)")
+        domain = f"{subdomain}.<root>" if subdomain else "app.<root>"
+        console.print(f"[dim]  → Will be accessible at: https://{subdomain}.{root_domain}[/dim]")
+
         target = Prompt.ask("Target (service:port)")
         add_auth = Confirm.ask("Add authentication?", default=False)
-        auth: Optional[str] = None
+        auth: str | None = None
         if add_auth:
             auth = Prompt.ask("Auth (user:pass or <default_auth>)", default="<default_auth>")
         public.append({"domain": domain, "target": target, "auth": auth})
+        endpoint_num += 1
 
     # Create stack directory and config
     stack_dir = Path("stacks") / name
@@ -120,7 +146,7 @@ def new_command() -> None:
     if source_type == "local":
         compose_file = stack_dir / "docker-compose.yml"
         if not compose_file.exists():
-            compose_file.write_text("version: '3.8'\n\nservices:\n  # Add your services here\n")
+            compose_file.write_text("services:\n  # Add your services here\n")
 
     console.print(f"[green]Created stack '{name}' at {stack_dir}[/green]")
 

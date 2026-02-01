@@ -1,6 +1,5 @@
 """Main CLI entry point for Surek."""
 
-from typing import Optional
 
 import typer
 from rich.console import Console
@@ -33,6 +32,7 @@ app.command(name="status")(stack.status)
 app.command(name="info")(stack.info)
 app.command(name="logs")(stack.logs)
 app.command(name="validate")(stack.validate)
+app.command(name="reset")(stack.reset)
 
 
 def version_callback(value: bool) -> None:
@@ -58,10 +58,10 @@ def help_llm_callback(value: bool) -> None:
 @app.callback(invoke_without_command=True)
 def main(
     ctx: typer.Context,
-    version: Optional[bool] = typer.Option(
+    version: bool | None = typer.Option(
         None, "--version", "-v", callback=version_callback, is_eager=True, help="Show version"
     ),
-    help_llm: Optional[bool] = typer.Option(
+    help_llm: bool | None = typer.Option(
         None, "--help-llm", callback=help_llm_callback, is_eager=True,
         help="Print full documentation for LLM consumption"
     ),
@@ -78,7 +78,7 @@ def main(
             run_tui()
         except SurekError as e:
             console.print(f"[red]Error:[/red] {e}")
-            raise typer.Exit(1)
+            raise typer.Exit(1) from None
 
 
 def run() -> None:
@@ -87,7 +87,7 @@ def run() -> None:
         app()
     except SurekError as e:
         console.print(f"[red]Error:[/red] {e}")
-        raise typer.Exit(1)
+        raise typer.Exit(1) from None
 
 
 if __name__ == "__main__":

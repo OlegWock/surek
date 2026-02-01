@@ -4,10 +4,9 @@ import json
 import shutil
 import tempfile
 import zipfile
-from datetime import datetime, timezone
+from datetime import UTC, datetime
 from io import BytesIO
 from pathlib import Path
-from typing import Optional
 
 import httpx
 
@@ -27,7 +26,7 @@ def get_cache_file() -> Path:
     return get_data_dir() / "github_cache.json"
 
 
-def get_cached_commit(stack_name: str) -> Optional[str]:
+def get_cached_commit(stack_name: str) -> str | None:
     """Get the cached commit hash for a stack.
 
     Args:
@@ -66,7 +65,7 @@ def save_cached_commit(stack_name: str, commit: str) -> None:
 
     cache[stack_name] = {
         "commit": commit,
-        "updated_at": datetime.now(timezone.utc).isoformat(),
+        "updated_at": datetime.now(UTC).isoformat(),
     }
 
     cache_file.write_text(json.dumps(cache, indent=2))

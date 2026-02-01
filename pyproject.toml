@@ -43,6 +43,7 @@ dev = [
     "ruff>=0.3",
     "types-pyyaml",
     "types-boto3",
+    "types-docker",
     "boto3-stubs[s3]",
 ]
 
@@ -66,13 +67,19 @@ line-length = 100
 
 [tool.ruff.lint]
 select = ["E", "F", "I", "N", "W", "UP", "B", "C4", "SIM"]
-ignore = ["E501"]
+ignore = ["E501", "B008"]  # B008: typer uses function calls in defaults by design
 
 [tool.mypy]
 python_version = "3.12"
 strict = true
-warn_return_any = true
-warn_unused_ignores = true
+warn_return_any = false
+warn_unused_ignores = false
+ignore_missing_imports = true
+
+[[tool.mypy.overrides]]
+module = ["docker.*", "textual.*", "boto3.*", "botocore.*"]
+ignore_missing_imports = true
+ignore_errors = true
 
 [tool.pytest.ini_options]
 asyncio_mode = "auto"

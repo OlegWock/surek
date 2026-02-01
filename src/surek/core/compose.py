@@ -4,7 +4,7 @@ import copy
 import json
 import os
 from pathlib import Path
-from typing import Any, Optional, Union
+from typing import Any
 
 import bcrypt
 import yaml
@@ -142,7 +142,7 @@ def transform_compose_file(
         }
 
         # Development mode - use internal TLS
-        if os.environ.get("NODE_ENV") == "development" or os.environ.get("SUREK_ENV") == "development":
+        if os.environ.get("SUREK_ENV") == "development":
             labels["caddy.tls"] = "internal"
 
         # Basic auth
@@ -180,7 +180,7 @@ def transform_compose_file(
 
     # 6. Service network injection - connect all services to Surek network
     if "services" in spec:
-        for service_name, service in spec["services"].items():
+        for _service_name, service in spec["services"].items():
             # Skip if network_mode is set (can't add networks with network_mode)
             if "network_mode" in service:
                 continue
@@ -256,9 +256,9 @@ def _merge_labels(service: dict[str, Any], labels: dict[str, str]) -> None:
 
 
 def _merge_envs(
-    original: Union[list[str], dict[str, str]],
+    original: list[str] | dict[str, str],
     extensions: list[str],
-) -> Union[list[str], dict[str, str]]:
+) -> list[str] | dict[str, str]:
     """Merge environment variables.
 
     Args:

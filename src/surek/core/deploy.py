@@ -2,7 +2,6 @@
 
 import shutil
 from pathlib import Path
-from typing import Optional
 
 from surek.core.compose import (
     read_compose_file,
@@ -80,6 +79,7 @@ def deploy_stack(
         compose_spec = transform_system_compose(compose_spec, surek_config)
 
     # General transformation
+    # TODO: we need to expand env and surek variables in compose file as well
     transformed = transform_compose_file(compose_spec, config, surek_config)
 
     # Write transformed file

@@ -8,23 +8,38 @@ from typing import Any
 def expand_env_vars(value: str) -> str:
     """Expand ${VAR_NAME} patterns with environment variables.
 
+    Supports default values with ${VAR_NAME:-default} syntax.
+
     Args:
-        value: String potentially containing ${VAR_NAME} patterns.
+        value: String potentially containing ${VAR_NAME} or ${VAR_NAME:-default} patterns.
 
     Returns:
         String with environment variables expanded.
 
     Raises:
-        ValueError: If an environment variable is not set.
+        ValueError: If an environment variable is not set and no default is provided.
+
+    Examples:
+        >>> os.environ["MY_VAR"] = "hello"
+        >>> expand_env_vars("${MY_VAR}")
+        'hello'
+        >>> expand_env_vars("${UNSET_VAR:-default_value}")
+        'default_value'
     """
-    pattern = r"\$\{([^}]+)\}"
+    # Pattern matches ${VAR} or ${VAR:-default}
+    pattern = r"\$\{([^}:]+)(?::-([^}]*))?\}"
 
     def replacer(match: re.Match[str]) -> str:
         var_name = match.group(1)
+        default_value = match.group(2)  # May be None if no default provided
         env_value = os.environ.get(var_name)
-        if env_value is None:
+
+        if env_value is not None:
+            return env_value
+        elif default_value is not None:
+            return default_value
+        else:
             raise ValueError(f"Environment variable '{var_name}' is not set")
-        return env_value
 
     return re.sub(pattern, replacer, value)
 

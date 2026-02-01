@@ -2,11 +2,9 @@
 
 import json
 import subprocess
-import tempfile
 from dataclasses import dataclass
-from datetime import datetime, timezone
+from datetime import UTC, datetime
 from pathlib import Path
-from typing import Optional
 
 import boto3
 from botocore.exceptions import BotoCoreError, ClientError
@@ -37,7 +35,7 @@ class BackupFailure:
     notified: bool = False
 
 
-def get_s3_client(config: BackupConfig):
+def get_s3_client(config: BackupConfig) -> boto3.client:  # type: ignore[valid-type]
     """Create an S3 client for backup operations.
 
     Args:
@@ -68,7 +66,7 @@ def list_backups(config: BackupConfig) -> list[BackupInfo]:
     """
     try:
         s3 = get_s3_client(config)
-        response = s3.list_objects_v2(Bucket=config.s3_bucket)
+        response = s3.list_objects_v2(Bucket=config.s3_bucket)  # type: ignore[attr-defined]
 
         backups = []
         for obj in response.get("Contents", []):
@@ -112,7 +110,7 @@ def download_backup(config: BackupConfig, backup_name: str, target_path: Path) -
     """
     try:
         s3 = get_s3_client(config)
-        s3.download_file(config.s3_bucket, backup_name, str(target_path))
+        s3.download_file(config.s3_bucket, backup_name, str(target_path))  # type: ignore[attr-defined]
     except (BotoCoreError, ClientError) as e:
         raise BackupError(f"Failed to download backup: {e}") from e
 
@@ -242,7 +240,7 @@ def record_backup_failure(backup_type: str, error: str) -> None:
     failures = load_failures()
 
     failure = BackupFailure(
-        timestamp=datetime.now(timezone.utc).isoformat(),
+        timestamp=datetime.now(UTC).isoformat(),
         backup_type=backup_type,
         error=error,
         notified=False,

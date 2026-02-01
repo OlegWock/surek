@@ -2,7 +2,6 @@
 
 from dataclasses import dataclass
 from pathlib import Path
-from typing import Optional
 
 from surek.core.config import load_stack_config
 from surek.exceptions import SurekError
@@ -14,7 +13,7 @@ from surek.utils.paths import get_stacks_dir
 class StackInfo:
     """Information about a discovered stack."""
 
-    config: Optional[StackConfig]
+    config: StackConfig | None
     path: Path
     valid: bool
     error: str = ""
