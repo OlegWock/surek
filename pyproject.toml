@@ -47,7 +47,7 @@ dev = [
 ]
 
 [project.scripts]
-surek = "surek.cli.main:app"
+surek = "surek.cli.main:run"
 
 [project.urls]
 Homepage = "https://github.com/OlegWock/surek"
