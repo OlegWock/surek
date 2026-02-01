@@ -39,6 +39,8 @@ export const deployStack = async (config: StackConfig, sourceDir: string, surekC
     mkdirSync(projectDir, { recursive: true });
 
     if (config.source.type === 'github') {
+        // TODO: probably need to cache commit hash after pull and skip if it matches or something?
+        // Currently re-downloading repo triggers Docker image to be built again, even if repo content didn't change
         await pullGithubRepo(config, projectDir, surekConfig);
     }
 

@@ -161,6 +161,7 @@ const system = subcommands({
     cmds: { start: systemStart, stop: systemStop }
 })
 
+// TODO: better handle docker command errors (at least show to user!). E.g. when missing root permissions
 export const app = subcommands({
     name: 'surek',
     version: packageJson.version,
