@@ -186,25 +186,18 @@ class StacksPane(Container):
             self.app.notify(f"Stop failed: {e}", severity="error")
 
     def action_info(self) -> None:
-        """Show info for the selected stack."""
-        # TODO: pressing `i` on stack shows simple notification, while we should redirect user to separate screen with
-        # detailed info about stack, services in it, associated volumes and their stats, and stream logs for stack
+        """Show detailed info for the selected stack."""
         stack_name = self._get_selected_stack()
         if not stack_name or stack_name == "System":
+            self.app.notify("Select a user stack to view info", severity="warning")
             return
 
         try:
             from surek.core.stacks import get_stack_by_name
+            from surek.tui.screens.stack_info import StackInfoScreen
 
             stack = get_stack_by_name(stack_name)
             if stack.config:
-                status = get_stack_status_detailed(stack.config.name)
-                info_text = (
-                    f"Stack: {stack.config.name}\n"
-                    f"Status: {status.status_text}\n"
-                    f"Source: {stack.config.source.type}\n"
-                    f"Services: {len(status.services)}"
-                )
-                self.app.notify(info_text, title="Stack Info", timeout=10)
+                self.app.push_screen(StackInfoScreen(stack.config))
         except Exception as e:
             self.app.notify(f"Error: {e}", severity="error")
