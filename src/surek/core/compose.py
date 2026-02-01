@@ -10,7 +10,7 @@ import bcrypt
 import yaml
 
 from surek.core.docker import DEFAULT_LABELS, SUREK_NETWORK
-from surek.core.variables import expand_variables
+from surek.core.variables import expand_all_variables_in_dict, expand_variables
 from surek.exceptions import SurekError
 from surek.models.config import SurekConfig
 from surek.models.stack import StackConfig
@@ -79,6 +79,9 @@ def transform_compose_file(
         SurekError: If a referenced service is not found.
     """
     spec = copy.deepcopy(spec)
+
+    # Expand surek variables (<root>, etc.) and env variables (${VAR}) in compose spec
+    spec = expand_all_variables_in_dict(spec, surek_config)
 
     volumes_dir = get_stack_volumes_dir(config.name)
     folders_to_create: list[Path] = []

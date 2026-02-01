@@ -1,6 +1,9 @@
 """Surek template variable expansion."""
 
+from typing import Any
+
 from surek.models.config import SurekConfig
+from surek.utils.env import expand_env_vars
 
 
 def expand_variables(value: str, config: SurekConfig) -> str:
@@ -63,3 +66,69 @@ def expand_variables_in_list(values: list[str], config: SurekConfig) -> list[str
         List of strings with variables replaced.
     """
     return [expand_variables(v, config) for v in values]
+
+
+def expand_all_variables(value: str, config: SurekConfig) -> str:
+    """Expand both Surek variables and environment variables in a string.
+
+    First expands Surek variables (<root>, etc.), then environment variables (${VAR}).
+
+    Args:
+        value: String potentially containing variables.
+        config: The main Surek configuration.
+
+    Returns:
+        String with all variables expanded.
+    """
+    # First expand surek variables, then env variables
+    result = expand_variables(value, config)
+    return expand_env_vars(result)
+
+
+def expand_all_variables_in_dict(data: dict[str, Any], config: SurekConfig) -> dict[str, Any]:
+    """Recursively expand all variables in a dictionary.
+
+    Expands both Surek variables (<root>, etc.) and environment variables (${VAR})
+    in all string values throughout the dictionary.
+
+    Args:
+        data: Dictionary potentially containing variables in string values.
+        config: The main Surek configuration.
+
+    Returns:
+        Dictionary with all variables expanded.
+    """
+    result: dict[str, Any] = {}
+    for key, value in data.items():
+        if isinstance(value, str):
+            result[key] = expand_all_variables(value, config)
+        elif isinstance(value, dict):
+            result[key] = expand_all_variables_in_dict(value, config)
+        elif isinstance(value, list):
+            result[key] = _expand_all_variables_in_list(value, config)
+        else:
+            result[key] = value
+    return result
+
+
+def _expand_all_variables_in_list(data: list[Any], config: SurekConfig) -> list[Any]:
+    """Recursively expand all variables in a list.
+
+    Args:
+        data: List potentially containing variables in string values.
+        config: The main Surek configuration.
+
+    Returns:
+        List with all variables expanded.
+    """
+    result: list[Any] = []
+    for item in data:
+        if isinstance(item, str):
+            result.append(expand_all_variables(item, config))
+        elif isinstance(item, dict):
+            result.append(expand_all_variables_in_dict(item, config))
+        elif isinstance(item, list):
+            result.append(_expand_all_variables_in_list(item, config))
+        else:
+            result.append(item)
+    return result

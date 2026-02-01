@@ -78,8 +78,7 @@ def deploy_stack(
     if is_system:
         compose_spec = transform_system_compose(compose_spec, surek_config)
 
-    # General transformation
-    # TODO: we need to expand env and surek variables in compose file as well
+    # General transformation (includes variable expansion)
     transformed = transform_compose_file(compose_spec, config, surek_config)
 
     # Write transformed file
