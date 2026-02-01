@@ -73,12 +73,9 @@ def main(
     if ctx.invoked_subcommand is None:
         # Launch TUI when no command is given
         try:
-            from surek.tui.app import SurekApp
+            from surek.tui import run_tui
 
-            tui_app = SurekApp()
-            tui_app.run()
-        except ImportError:
-            console.print("[yellow]TUI not yet implemented. Use --help for available commands.[/yellow]")
+            run_tui()
         except SurekError as e:
             console.print(f"[red]Error:[/red] {e}")
             raise typer.Exit(1)
