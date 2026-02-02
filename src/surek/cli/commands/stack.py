@@ -507,13 +507,17 @@ def _find_orphan_volume_folders() -> list[tuple[str, str]]:
     if not volumes_base.exists():
         return []
 
-    # Get all known stack names (including system)
+    # Get all known stack names (including system and invalid stacks)
     known_stacks = {"surek-system"}
     try:
         stacks = get_available_stacks()
         for stack in stacks:
             if stack.valid and stack.config:
                 known_stacks.add(stack.config.name)
+            else:
+                # For invalid stacks, use the folder name as the stack name
+                # to avoid accidentally deleting their volumes
+                known_stacks.add(stack.path.parent.name)
     except SurekError:
         pass
 
