@@ -3,11 +3,20 @@
 from textual.app import ComposeResult
 from textual.binding import Binding
 from textual.containers import Container
-from textual.widgets import DataTable, Static
+from textual.widgets import DataTable
 
 from surek.core.backup import format_bytes, list_backups
 from surek.core.config import load_config
 from surek.exceptions import SurekError
+
+# Row height for table padding (1 = default, 3 = extra vertical space)
+ROW_HEIGHT = 3
+CELL_PADDING = "  "  # Horizontal padding for cells
+
+
+def _centered(text: str) -> str:
+    """Center text vertically and add horizontal padding."""
+    return f"\n{CELL_PADDING}{text}{CELL_PADDING}\n"
 
 
 class BackupsPane(Container):
@@ -19,14 +28,19 @@ class BackupsPane(Container):
 
     def compose(self) -> ComposeResult:
         """Compose the backups pane."""
-        yield Static("Backups", classes="title")
-        yield DataTable(id="backups-table")
+        yield DataTable(id="backups-table", zebra_stripes=True)
 
     def on_mount(self) -> None:
         """Initialize the table when mounted."""
         table = self.query_one("#backups-table", DataTable)
         table.cursor_type = "row"
-        table.add_columns("Backup", "Type", "Size", "Created")
+        table.header_height = ROW_HEIGHT
+        table.add_columns(
+            _centered("Backup"),
+            _centered("Type"),
+            _centered("Size"),
+            _centered("Created"),
+        )
         self.refresh_data()
 
     def refresh_data(self) -> None:
@@ -39,11 +53,12 @@ class BackupsPane(Container):
 
             if not config.backup:
                 table.add_row(
-                    "Backup not configured",
-                    "-",
-                    "-",
-                    "-",
+                    _centered("Backup not configured"),
+                    _centered("-"),
+                    _centered("-"),
+                    _centered("-"),
                     key="not-configured",
+                    height=ROW_HEIGHT,
                 )
                 return
 
@@ -51,38 +66,42 @@ class BackupsPane(Container):
 
             if not backups:
                 table.add_row(
-                    "No backups found",
-                    "-",
-                    "-",
-                    "-",
+                    _centered("No backups found"),
+                    _centered("-"),
+                    _centered("-"),
+                    _centered("-"),
                     key="empty",
+                    height=ROW_HEIGHT,
                 )
                 return
 
             for backup in backups[:50]:  # Limit to 50 for performance
                 table.add_row(
-                    backup.name,
-                    backup.backup_type.capitalize(),
-                    format_bytes(backup.size),
-                    backup.created.strftime("%Y-%m-%d %H:%M"),
+                    _centered(backup.name),
+                    _centered(backup.backup_type.capitalize()),
+                    _centered(format_bytes(backup.size)),
+                    _centered(backup.created.strftime("%Y-%m-%d %H:%M")),
                     key=backup.name,
+                    height=ROW_HEIGHT,
                 )
 
         except SurekError as e:
             table.add_row(
-                f"Error: {e}",
-                "-",
-                "-",
-                "-",
+                _centered(f"Error: {e}"),
+                _centered("-"),
+                _centered("-"),
+                _centered("-"),
                 key="error",
+                height=ROW_HEIGHT,
             )
         except Exception as e:
             table.add_row(
-                f"Error: {e}",
-                "-",
-                "-",
-                "-",
+                _centered(f"Error: {e}"),
+                _centered("-"),
+                _centered("-"),
+                _centered("-"),
                 key="error",
+                height=ROW_HEIGHT,
             )
 
     def action_run_backup(self) -> None:
@@ -95,7 +114,7 @@ class BackupsPane(Container):
         try:
             from surek.core.backup import trigger_backup
 
-            trigger_backup("daily")
+            trigger_backup()
             self.app.notify("Backup completed", severity="information")
             self.refresh_data()
         except Exception as e:

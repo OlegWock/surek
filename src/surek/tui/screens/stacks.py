@@ -3,11 +3,36 @@
 from textual.app import ComposeResult
 from textual.binding import Binding
 from textual.containers import Container
-from textual.widgets import DataTable, Static
+from textual.events import Click
+from textual.message import Message
+from textual.widgets import DataTable
 
 from surek.core.docker import get_stack_status_detailed
 from surek.core.stacks import get_available_stacks
 from surek.exceptions import SurekError
+
+# Row height for table padding (1 = default, 3 = extra vertical space)
+ROW_HEIGHT = 3
+CELL_PADDING = "  "  # Horizontal padding for cells
+
+
+def _centered(text: str) -> str:
+    """Center text vertically and add horizontal padding."""
+    return f"\n{CELL_PADDING}{text}{CELL_PADDING}\n"
+
+
+class ClickableDataTable(DataTable[str]):
+    """DataTable that emits double-click events."""
+
+    class DoubleClicked(Message):
+        """Message sent when table is double-clicked."""
+
+        pass
+
+    def on_click(self, event: Click) -> None:
+        """Handle click events."""
+        if event.chain == 2:  # Double click
+            self.post_message(self.DoubleClicked())
 
 
 class StacksPane(Container):
@@ -24,14 +49,19 @@ class StacksPane(Container):
 
     def compose(self) -> ComposeResult:
         """Compose the stacks pane."""
-        yield Static("Stacks", classes="title")
-        yield DataTable(id="stacks-table")
+        yield ClickableDataTable(id="stacks-table", zebra_stripes=True)
 
     def on_mount(self) -> None:
         """Initialize the table when mounted."""
         table = self.query_one("#stacks-table", DataTable)
         table.cursor_type = "row"
-        table.add_columns("Stack", "Status", "Health", "Path")
+        table.header_height = ROW_HEIGHT
+        table.add_columns(
+            _centered("Stack"),
+            _centered("Status"),
+            _centered("Health"),
+            _centered("Path"),
+        )
         self.refresh_data()
 
     def refresh_data(self) -> None:
@@ -43,19 +73,21 @@ class StacksPane(Container):
         try:
             system_status = get_stack_status_detailed("surek-system")
             table.add_row(
-                "System",
-                system_status.status_text,
-                system_status.health_summary,
-                "",
+                _centered("System"),
+                _centered(system_status.status_text),
+                _centered(system_status.health_summary),
+                _centered(""),
                 key="surek-system",
+                height=ROW_HEIGHT,
             )
         except Exception:
             table.add_row(
-                "System",
-                "? Unknown",
-                "-",
-                "",
+                _centered("System"),
+                _centered("? Unknown"),
+                _centered("-"),
+                _centered(""),
                 key="surek-system",
+                height=ROW_HEIGHT,
             )
 
         # User stacks
@@ -64,22 +96,24 @@ class StacksPane(Container):
             for stack in stacks:
                 if not stack.valid:
                     table.add_row(
-                        str(stack.path.parent.name),
-                        "Invalid config",
-                        "-",
-                        str(stack.path.parent.name),
+                        _centered(str(stack.path.parent.name)),
+                        _centered("Invalid config"),
+                        _centered("-"),
+                        _centered(str(stack.path.parent.name)),
                         key=f"invalid-{stack.path}",
+                        height=ROW_HEIGHT,
                     )
                     continue
 
                 if stack.config:
                     status = get_stack_status_detailed(stack.config.name)
                     table.add_row(
-                        stack.config.name,
-                        status.status_text,
-                        status.health_summary,
-                        str(stack.path.parent.name),
+                        _centered(stack.config.name),
+                        _centered(status.status_text),
+                        _centered(status.health_summary),
+                        _centered(str(stack.path.parent.name)),
                         key=stack.config.name,
+                        height=ROW_HEIGHT,
                     )
         except SurekError:
             pass  # No stacks directory
@@ -90,9 +124,9 @@ class StacksPane(Container):
         if table.cursor_row is not None:
             row_key = table.get_row_at(table.cursor_row)
             if row_key:
-                # First column is the name
+                # First column is the name (strip centering newlines)
                 coord = (table.cursor_row, 0)
-                return str(table.get_cell_at(coord))  # type: ignore[arg-type]
+                return str(table.get_cell_at(coord)).strip()  # type: ignore[arg-type]
         return None
 
     def action_deploy(self) -> None:
@@ -187,19 +221,38 @@ class StacksPane(Container):
         except Exception as e:
             self.app.notify(f"Stop failed: {e}", severity="error")
 
+    def on_clickable_data_table_double_clicked(
+        self, event: ClickableDataTable.DoubleClicked
+    ) -> None:
+        """Handle double-click on table to open details."""
+        self.action_info()
+
+    def on_data_table_row_selected(self, event: DataTable.RowSelected) -> None:
+        """Handle Enter key on table row to open details."""
+        self.action_info()
+
     def action_info(self) -> None:
         """Show detailed info for the selected stack."""
         stack_name = self._get_selected_stack()
-        if not stack_name or stack_name == "System":
-            self.app.notify("Select a user stack to view info", severity="warning")
+        if not stack_name:
+            self.app.notify("Select a stack to view info", severity="warning")
             return
 
         try:
-            from surek.core.stacks import get_stack_by_name
             from surek.tui.screens.stack_info import StackInfoScreen
 
-            stack = get_stack_by_name(stack_name)
-            if stack.config:
-                self.app.push_screen(StackInfoScreen(stack.config))
+            if stack_name == "System":
+                from surek.core.config import load_stack_config
+                from surek.utils.paths import get_system_dir
+
+                system_dir = get_system_dir()
+                system_config = load_stack_config(system_dir / "surek.stack.yml")
+                self.app.push_screen(StackInfoScreen(system_config))
+            else:
+                from surek.core.stacks import get_stack_by_name
+
+                stack = get_stack_by_name(stack_name)
+                if stack.config:
+                    self.app.push_screen(StackInfoScreen(stack.config))
         except Exception as e:
             self.app.notify(f"Error: {e}", severity="error")

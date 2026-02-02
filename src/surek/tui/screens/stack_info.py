@@ -1,19 +1,23 @@
 """Stack info screen for TUI."""
 
 import asyncio
-from pathlib import Path
 
+from rich.text import Text
 from textual.app import ComposeResult
 from textual.binding import Binding
-from textual.containers import Horizontal, ScrollableContainer, Vertical
+from textual.containers import ScrollableContainer, Vertical
 from textual.screen import Screen
-from textual.widgets import DataTable, Footer, Header, Input, Log, Static
-from textual.worker import Worker, get_current_worker
+from textual.timer import Timer
+from textual.widgets import DataTable, Footer, Static
+from textual.worker import get_current_worker
 
+from surek.core.config import load_config
 from surek.core.docker import format_bytes, get_stack_status_detailed
+from surek.core.variables import expand_variables
 from surek.exceptions import SurekError
 from surek.models.stack import StackConfig
-from surek.utils.paths import get_stack_project_dir, get_stack_volumes_dir
+from surek.tui.widgets import LogsPanel, TopBar
+from surek.utils.paths import get_stack_volumes_dir
 
 
 class StackInfoScreen(Screen[None]):
@@ -23,13 +27,21 @@ class StackInfoScreen(Screen[None]):
         Binding("escape", "pop_screen", "Back"),
         Binding("q", "pop_screen", "Back"),
         Binding("r", "refresh", "Refresh"),
-        Binding("l", "toggle_logs", "Toggle logs"),
+        Binding("l", "toggle_logs_fullscreen", "Fullscreen logs"),
         Binding("f", "toggle_follow", "Follow logs"),
+        Binding("w", "toggle_wrap", "Wrap logs"),
     ]
 
     CSS = """
     StackInfoScreen {
         background: $surface;
+        layout: vertical;
+    }
+
+    #info-container {
+        height: auto;
+        max-height: 50%;
+        margin-top: 1;
     }
 
     .section-title {
@@ -53,29 +65,13 @@ class StackInfoScreen(Screen[None]):
         height: auto;
     }
 
-    #logs-header {
+    #logs-section-title {
         height: auto;
-        padding: 0 1;
     }
 
-    #logs-filter {
-        width: 30;
-        margin-right: 1;
-    }
-
-    #follow-status {
-        width: auto;
-        padding: 0 1;
-    }
-
-    #logs-container {
+    #logs-panel {
+        width: 100%;
         height: 1fr;
-        padding: 0 1;
-    }
-
-    #logs-widget {
-        height: 100%;
-        border: solid $primary;
     }
     """
 
@@ -88,48 +84,55 @@ class StackInfoScreen(Screen[None]):
         """
         super().__init__(name=name)
         self.stack_config = stack_config
-        self._show_logs = True
-        self._follow_logs = False
-        self._follow_worker: Worker[None] | None = None
-        self._log_filter = ""
+        self._logs_fullscreen = False
+        self._stats_timer: Timer | None = None
 
     def compose(self) -> ComposeResult:
         """Compose the screen layout."""
-        yield Header()
+        yield TopBar(f"Stack: {self.stack_config.name}", show_back=True)
 
-        with ScrollableContainer():
+        with ScrollableContainer(id="info-container"):
             # Stack info section
             yield Static("Stack Information", classes="section-title")
             yield Static("Loading...", id="stack-info", classes="info-row")
 
+            # Endpoints section
+            yield Static("Endpoints", classes="section-title")
+            yield Static(id="endpoints-info", classes="info-row")
+
             # Services section
             yield Static("Services", classes="section-title")
-            yield DataTable(id="services-table")
+            yield DataTable(id="services-table", zebra_stripes=True)
 
             # Volumes section
             yield Static("Volumes", classes="section-title")
             with Vertical(id="volumes-container"):
                 yield Static(id="volumes-info")
 
-            # Logs section
-            yield Static("Logs", classes="section-title")
-            with Horizontal(id="logs-header"):
-                yield Input(placeholder="Filter logs...", id="logs-filter")
-                yield Static("[dim]Follow: OFF[/dim]", id="follow-status")
-            with Vertical(id="logs-container"):
-                yield Log(id="logs-widget", highlight=True)
+        # Logs section - outside ScrollableContainer to take remaining space
+        yield Static("Logs", classes="section-title", id="logs-section-title")
+        yield LogsPanel(stack_name=self.stack_config.name, id="logs-panel")
 
         yield Footer()
 
+    def on_top_bar_back_pressed(self, event: TopBar.BackPressed) -> None:
+        """Handle back button press."""
+        self.action_pop_screen()
+
     def on_mount(self) -> None:
         """Initialize the screen when mounted."""
-        self.sub_title = f"Stack: {self.stack_config.name}"
         self._setup_services_table()
         # Load basic info immediately, stats in background
         self._refresh_stack_info_basic()
+        self._refresh_endpoints()
         self._refresh_volumes()
-        self._load_logs()
         # Load stats in background
+        self.run_worker(self._load_stats_async(), exclusive=True)
+        # Auto-refresh stats every 2 seconds
+        self._stats_timer = self.set_interval(2, self._refresh_stats)
+
+    def _refresh_stats(self) -> None:
+        """Refresh stats in background (called by timer)."""
         self.run_worker(self._load_stats_async(), exclusive=True)
 
     def _setup_services_table(self) -> None:
@@ -151,17 +154,41 @@ class StackInfoScreen(Screen[None]):
             f"Compose: {config.compose_file_path}"
         )
 
-        if config.public:
-            endpoints = [f"  - {ep.domain} -> {ep.target}" for ep in config.public]
-            info_text += "\nEndpoints:\n" + "\n".join(endpoints)
-
         self.query_one("#stack-info", Static).update(info_text)
+
+    def _refresh_endpoints(self) -> None:
+        """Refresh the endpoints section."""
+        config = self.stack_config
+
+        if not config.public:
+            self.query_one("#endpoints-info", Static).update("No public endpoints configured")
+            return
+
+        try:
+            surek_config = load_config()
+            # Build Rich Text with clickable links
+            text = Text()
+            for i, ep in enumerate(config.public):
+                url = f"https://{expand_variables(ep.domain, surek_config)}"
+                if i > 0:
+                    text.append("\n")
+                text.append("  ")
+                text.append(url, style=f"link {url}")
+                text.append(f" -> {ep.target}")
+        except SurekError:
+            text = Text()
+            for i, ep in enumerate(config.public):
+                if i > 0:
+                    text.append("\n")
+                text.append(f"  {ep.domain} -> {ep.target}")
+
+        self.query_one("#endpoints-info", Static).update(text)
 
     async def _load_stats_async(self) -> None:
         """Load stats in background."""
         worker = get_current_worker()
 
-        def get_stats() -> tuple[str, list[tuple[str, str, str, str, str]]]:
+        def get_stats() -> tuple[str, list[tuple[str, str, str, str, str]], list[str]]:
             config = self.stack_config
             status = get_stack_status_detailed(config.name, include_stats=True)
 
@@ -172,12 +199,10 @@ class StackInfoScreen(Screen[None]):
                 f"Compose: {config.compose_file_path}"
             )
 
-            if config.public:
-                endpoints = [f"  - {ep.domain} -> {ep.target}" for ep in config.public]
-                info_text += "\nEndpoints:\n" + "\n".join(endpoints)
-
             rows: list[tuple[str, str, str, str, str]] = []
+            service_names: list[str] = []
             for service in status.services:
+                service_names.append(service.name)
                 status_text = service.status
                 if service.status == "running":
                     status_text = f"[green]{status_text}[/green]"
@@ -198,10 +223,10 @@ class StackInfoScreen(Screen[None]):
                     format_bytes(service.memory_bytes),
                 ))
 
-            return info_text, rows
+            return info_text, rows, service_names
 
         # Run blocking code in thread
-        info_text, rows = await asyncio.to_thread(get_stats)
+        info_text, rows, service_names = await asyncio.to_thread(get_stats)
 
         if worker.is_cancelled:
             return
@@ -216,6 +241,10 @@ class StackInfoScreen(Screen[None]):
                 table.add_row(*row, key=row[0])
         else:
             table.add_row("No services found", "-", "-", "-", "-", key="empty")
+
+        # Update logs panel with service tabs
+        if service_names:
+            await self.query_one("#logs-panel", LogsPanel).update_services(service_names)
 
     def _refresh_volumes(self) -> None:
         """Refresh the volumes section."""
@@ -233,134 +262,39 @@ class StackInfoScreen(Screen[None]):
 
         self.query_one("#volumes-info", Static).update(text)
 
-    def _get_compose_paths(self) -> tuple[Path, Path] | None:
-        """Get project dir and compose file paths if they exist."""
-        project_dir = get_stack_project_dir(self.stack_config.name)
-        compose_file = project_dir / "docker-compose.surek.yml"
-        if not compose_file.exists():
-            return None
-        return project_dir, compose_file
-
-    def _load_logs(self) -> None:
-        """Load recent logs into the log widget."""
-        log_widget = self.query_one("#logs-widget", Log)
-        log_widget.clear()
-
-        paths = self._get_compose_paths()
-        if not paths:
-            log_widget.write_line("[dim]Stack not deployed - no logs available[/dim]")
-            return
-
-        project_dir, compose_file = paths
-
-        try:
-            from surek.core.docker import run_docker_compose
-
-            output = run_docker_compose(
-                compose_file=compose_file,
-                project_dir=project_dir,
-                command="logs",
-                args=["--tail", "100", "--no-color"],
-                capture_output=True,
-                silent=True,
-            )
-
-            if output.strip():
-                for line in output.strip().split("\n"):
-                    if self._log_filter and self._log_filter.lower() not in line.lower():
-                        continue
-                    log_widget.write_line(line)
-            else:
-                log_widget.write_line("[dim]No logs available[/dim]")
-
-        except SurekError as e:
-            log_widget.write_line(f"[red]Error fetching logs: {e}[/red]")
-
-    async def _follow_logs_stream(self) -> None:
-        """Stream logs in follow mode."""
-        import subprocess
-
-        paths = self._get_compose_paths()
-        if not paths:
-            return
-
-        project_dir, compose_file = paths
-        log_widget = self.query_one("#logs-widget", Log)
-
-        cmd = [
-            "docker", "compose",
-            "--file", str(compose_file),
-            "--project-directory", str(project_dir),
-            "logs", "--follow", "--tail", "0", "--no-color",
-        ]
-
-        try:
-            process = await asyncio.create_subprocess_exec(
-                *cmd,
-                stdout=subprocess.PIPE,
-                stderr=subprocess.STDOUT,
-            )
-
-            worker = get_current_worker()
-
-            while not worker.is_cancelled:
-                if process.stdout is None:
-                    break
-                line = await process.stdout.readline()
-                if not line:
-                    break
-                text = line.decode().rstrip()
-                if self._log_filter and self._log_filter.lower() not in text.lower():
-                    continue
-                log_widget.write_line(text)
-
-            process.terminate()
-            await process.wait()
-
-        except Exception as e:
-            log_widget.write_line(f"[red]Log streaming error: {e}[/red]")
-
-    def on_input_changed(self, event: Input.Changed) -> None:
-        """Handle filter input changes."""
-        if event.input.id == "logs-filter":
-            self._log_filter = event.value
-            # Reload logs with new filter (only if not following)
-            if not self._follow_logs:
-                self._load_logs()
-
     def action_refresh(self) -> None:
         """Refresh all data."""
         self._refresh_stack_info_basic()
+        self._refresh_endpoints()
         self._refresh_volumes()
-        self._load_logs()
+        self.query_one("#logs-panel", LogsPanel).refresh_logs()
         self.run_worker(self._load_stats_async(), exclusive=True)
         self.notify("Data refreshed")
 
-    def action_toggle_logs(self) -> None:
-        """Toggle logs visibility."""
-        logs_container = self.query_one("#logs-container")
-        logs_header = self.query_one("#logs-header")
-        self._show_logs = not self._show_logs
-        logs_container.display = self._show_logs
-        logs_header.display = self._show_logs
+    def action_toggle_logs_fullscreen(self) -> None:
+        """Toggle logs fullscreen mode."""
+        self._logs_fullscreen = not self._logs_fullscreen
+
+        # Hide/show info container in fullscreen mode (keep logs title visible)
+        info_container = self.query_one("#info-container")
+        info_container.display = not self._logs_fullscreen
 
     def action_toggle_follow(self) -> None:
         """Toggle log following mode."""
-        self._follow_logs = not self._follow_logs
-        status_widget = self.query_one("#follow-status", Static)
-
-        if self._follow_logs:
-            status_widget.update("[green]Follow: ON[/green]")
-            self._follow_worker = self.run_worker(self._follow_logs_stream(), exclusive=True)
+        is_following = self.query_one("#logs-panel", LogsPanel).toggle_follow()
+        title = self.query_one("#logs-section-title", Static)
+        if is_following:
+            title.update("Logs [green](following)[/green]")
         else:
-            status_widget.update("[dim]Follow: OFF[/dim]")
-            if self._follow_worker:
-                self._follow_worker.cancel()
-                self._follow_worker = None
+            title.update("Logs")
+
+    def action_toggle_wrap(self) -> None:
+        """Toggle log line wrapping."""
+        self.query_one("#logs-panel", LogsPanel).toggle_wrap()
 
     def action_pop_screen(self) -> None:
         """Go back to the previous screen."""
-        # Stop log following if active
-        if self._follow_worker:
-            self._follow_worker.cancel()
+        if self._stats_timer:
+            self._stats_timer.stop()
+        self.query_one("#logs-panel", LogsPanel).stop_following()
         self.app.pop_screen()

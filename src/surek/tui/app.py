@@ -2,10 +2,11 @@
 
 from textual.app import App, ComposeResult
 from textual.binding import Binding
-from textual.widgets import Footer, Header, TabbedContent, TabPane
+from textual.widgets import DataTable, Footer, TabbedContent, TabPane
 
 from surek.tui.screens.backups import BackupsPane
 from surek.tui.screens.stacks import StacksPane
+from surek.tui.widgets import TopBar
 
 
 class SurekApp(App[None]):
@@ -17,14 +18,17 @@ class SurekApp(App[None]):
     CSS = """
     Screen {
         background: $surface;
+        overflow: hidden;
     }
 
     #stacks-pane, #backups-pane {
-        padding: 1 2;
+        padding: 0;
     }
 
     TabbedContent {
         padding: 0 1;
+        height: 1fr;
+        margin-top: 1;
     }
 
     TabPane {
@@ -33,10 +37,6 @@ class SurekApp(App[None]):
 
     DataTable {
         height: 100%;
-    }
-
-    DataTable > .datatable--header {
-        padding: 0 1;
     }
 
     DataTable > .datatable--cursor {
@@ -70,13 +70,17 @@ class SurekApp(App[None]):
 
     def compose(self) -> ComposeResult:
         """Compose the application layout."""
-        yield Header()
+        yield TopBar("Surek")
         with TabbedContent():
             with TabPane("Stacks", id="stacks-tab"):
                 yield StacksPane(id="stacks-pane")
             with TabPane("Backups", id="backups-tab"):
                 yield BackupsPane(id="backups-pane")
         yield Footer()
+
+    def on_mount(self) -> None:
+        """Focus the stacks table on startup."""
+        self.query_one("#stacks-table", DataTable).focus()
 
     def action_refresh(self) -> None:
         """Refresh all data."""
