@@ -38,7 +38,7 @@ surek init
 surek new
 
 # Start system containers (Caddy, Portainer, Netdata)
-surek system start
+surek start system
 
 # Deploy a stack
 surek deploy my-stack
@@ -123,18 +123,23 @@ backup:
 | `surek` | Launch interactive TUI |
 | `surek init` | Create surek.yml interactively |
 | `surek new` | Create a new stack interactively |
-| `surek deploy <stack>` | Deploy a stack |
+| `surek schema` | Generate JSON schemas for editor autocompletion |
+| `surek deploy <stack>` | Deploy a stack (use `system` for system containers) |
 | `surek start <stack>` | Start an already deployed stack |
 | `surek stop <stack>` | Stop a running stack |
 | `surek status` | Show status of all stacks |
+| `surek status --stats` | Include CPU/memory usage (slower) |
 | `surek info <stack>` | Show detailed stack information |
-| `surek logs <stack> [service]` | View stack logs |
+| `surek logs <stack> [service]` | View stack logs (`-f` to follow) |
 | `surek validate <path>` | Validate a stack config |
-| `surek system start` | Start system containers |
-| `surek system stop` | Stop system containers |
+| `surek reset <stack>` | Stop stack and delete all its data |
+| `surek prune` | Remove unused Docker resources |
+| `surek prune --volumes` | Also remove unused volumes |
 | `surek backup list` | List all backups |
 | `surek backup run` | Trigger immediate backup |
 | `surek backup restore` | Restore from backup |
+
+**Note:** The `system` stack name is reserved for Surek's system containers (Caddy, Portainer, Netdata, Backup). Use `surek start system`, `surek stop system`, etc.
 
 ## Template Variables
 

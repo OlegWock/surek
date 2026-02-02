@@ -37,7 +37,7 @@ surek init
 surek new
 
 # Deploy system containers (Caddy, Portainer, Netdata)
-surek system start
+surek start system
 
 # Deploy a stack
 surek deploy my-stack
@@ -59,17 +59,28 @@ surek
 | `surek deploy <stack>` | Deploy a stack (pull sources, transform compose, start) |
 | `surek start <stack>` | Start an already deployed stack |
 | `surek stop <stack>` | Stop a running stack |
-| `surek status` | Show status of all stacks with health/resources |
+| `surek status` | Show status of all stacks with health |
+| `surek status --stats` | Include CPU/memory usage (slower) |
 | `surek info <stack>` | Show detailed stack information |
-| `surek logs <stack> [service]` | View logs for stack or service |
+| `surek logs <stack> [service]` | View logs for stack or service (`-f` to follow) |
 | `surek validate <path>` | Validate a stack configuration file |
+| `surek reset <stack>` | Stop stack and delete all its data (volumes, project files) |
+| `surek prune` | Remove unused Docker resources (containers, networks, images) |
+| `surek prune --volumes` | Also remove unused Docker volumes and orphan volume folders |
 
-### System Commands
+### System Stack
+
+The `system` stack name is reserved for Surek's system containers. Use it like any other stack:
 
 | Command | Description |
 |---------|-------------|
-| `surek system start` | Create Docker network and start system containers |
-| `surek system stop` | Stop system containers |
+| `surek start system` | Create Docker network and start system containers |
+| `surek stop system` | Stop system containers |
+| `surek deploy system` | Redeploy system containers |
+| `surek info system` | Show system container details |
+| `surek logs system` | View system container logs |
+
+**Note:** `surek reset system` is not allowed. Use `surek stop system` instead.
 
 ### Backup Commands
 
@@ -87,6 +98,7 @@ surek
 | `surek init` | Interactive wizard to create surek.yml |
 | `surek init --git-only` | Only add surek-data to .gitignore |
 | `surek new` | Interactive wizard to create a new stack |
+| `surek schema` | Generate JSON schemas for editor autocompletion |
 
 ### Options
 
@@ -136,7 +148,7 @@ notifications:
 Location: `stacks/<stack-name>/surek.stack.yml`
 
 ```yaml
-# Required: Unique stack name
+# Required: Unique stack name (cannot be 'system' or 'surek-system')
 name: my-stack
 
 # Required: Source of stack files
@@ -171,7 +183,7 @@ backup:
 
 ## Template Variables
 
-Use these in `surek.stack.yml` (in `public.domain`, `public.auth`, and `env` sections):
+Use these in `surek.stack.yml` (in `public.domain`, `public.auth`, `env` sections) and in Docker Compose files:
 
 | Variable | Description |
 |----------|-------------|
@@ -187,12 +199,12 @@ Use these in `surek.stack.yml` (in `public.domain`, `public.auth`, and `env` sec
 
 ## Environment Variables
 
-Use `${VAR_NAME}` syntax in any configuration file to reference environment variables:
+Use `${VAR_NAME}` or `${VAR_NAME:-default}` syntax in any configuration file:
 
 ```yaml
 default_auth: admin:${SUREK_PASSWORD}
 backup:
-  password: ${BACKUP_ENCRYPTION_KEY}
+  password: ${BACKUP_ENCRYPTION_KEY:-default_password}
 ```
 
 ## Directory Structure
@@ -200,6 +212,8 @@ backup:
 ```
 project/
 ├── surek.yml              # Main configuration
+├── surek.config.schema.json  # Generated schema for surek.yml
+├── surek.stack.schema.json   # Generated schema for stack configs
 ├── stacks/                # User-defined stacks
 │   └── my-app/
 │       ├── surek.stack.yml
@@ -240,6 +254,7 @@ When you run `surek deploy <stack>`:
 1. **Source Resolution**: Downloads from GitHub (if configured) or uses local files
 2. **File Merging**: Copies stack files to project directory
 3. **Compose Transformation**:
+   - Expands template variables (`<root>`, etc.) and env variables (`${VAR}`)
    - Adds `surek` network to all services
    - Converts volumes to bind mounts for backup
    - Adds Caddy labels for reverse proxy
@@ -249,16 +264,27 @@ When you run `surek deploy <stack>`:
 
 ## TUI Keyboard Shortcuts
 
+### Main Screen
+
 | Key | Action |
 |-----|--------|
-| `Tab` | Switch between Stacks/Backups |
+| `Tab` | Switch between Stacks/Backups tabs |
 | `r` | Refresh data |
 | `d` | Deploy selected stack |
 | `s` | Start selected stack |
 | `x` | Stop selected stack |
-| `i` | Show stack info |
+| `i` / `Enter` / `→` | Show stack info |
 | `b` | Run backup (Backups tab) |
 | `q` | Quit |
+
+### Stack Info Screen
+
+| Key | Action |
+|-----|--------|
+| `Esc` / `q` | Go back |
+| `r` | Refresh data |
+| `l` | Toggle logs visibility |
+| `f` | Toggle log following mode |
 
 ## Troubleshooting
 
@@ -266,7 +292,7 @@ When you run `surek deploy <stack>`:
 Ensure Docker is running and your user has permission to access the Docker socket.
 
 ### Network not found
-Run `surek system start` to create the Surek network before deploying stacks.
+Run `surek start system` to create the Surek network before deploying stacks.
 
 ### Certificate issues
 Caddy automatically provisions Let's Encrypt certificates. Ensure ports 80 and 443 are open and your domain points to the server.
@@ -274,17 +300,25 @@ Caddy automatically provisions Let's Encrypt certificates. Ensure ports 80 and 4
 ### Backup failures
 Check `surek-data/backup_failures.json` for error details. Ensure S3 credentials are correct and the bucket exists.
 
+## Reserved Names
+
+The following stack names are reserved and cannot be used for user stacks:
+- `system`
+- `surek-system`
+
 ## Backward Compatibility
 
 Surek v2 is backward compatible with v1 configuration files. All existing `surek.yml` and `surek.stack.yml` files work without modification.
 
 New v2 features:
-- `${ENV_VAR}` syntax for environment variables
+- `${ENV_VAR}` and `${ENV_VAR:-default}` syntax for environment variables
+- Variables expanded in Docker Compose files
 - `system_services` section to disable Portainer/Netdata
-- Interactive TUI
-- `surek init`, `surek new` commands
-- `surek info`, `surek logs` commands
+- Interactive TUI with stack info screen
+- `surek init`, `surek new`, `surek schema` commands
+- `surek info`, `surek logs`, `surek reset`, `surek prune` commands
 - Backup listing and restore commands
+- Shell completion for commands and stack names
 
 ## License
 
