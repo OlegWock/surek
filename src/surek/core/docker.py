@@ -218,11 +218,13 @@ def get_stack_status_detailed(stack_name: str, include_stats: bool = False) -> S
     # Health summary
     unhealthy = sum(1 for s in services if s.health == "unhealthy")
     starting = sum(1 for s in services if s.health == "starting")
-    if unhealthy > 0:
+    healthy = sum(1 for s in services if s.health == "healthy")
+    without_health = sum(1 for s in services if s.health is None)
+    if unhealthy > 0 and running > 0:
         health_summary = f"⚠ {unhealthy} unhealthy"
-    elif starting > 0:
+    elif starting > 0 and running > 0:
         health_summary = "starting..."
-    elif all(s.health in ("healthy", None) for s in services):
+    elif healthy > 0 and (healthy + without_health == total) and running > 0:
         health_summary = "✓ healthy"
     else:
         health_summary = "-"

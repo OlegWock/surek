@@ -19,8 +19,22 @@ from surek.utils.paths import get_data_dir, get_stack_project_dir
 console = Console()
 
 
+def _complete_stack_name(incomplete: str) -> list[str]:
+    """Provide autocompletion for stack names."""
+    try:
+        stacks = get_available_stacks()
+        names = [s.config.name for s in stacks if s.valid and s.config]
+        # Add 'system' for logs command
+        names.append("system")
+        return [name for name in names if name.startswith(incomplete)]
+    except Exception:
+        return []
+
+
 def deploy(
-    stack_name: str = typer.Argument(..., help="Name of the stack to deploy"),
+    stack_name: str = typer.Argument(
+        ..., help="Name of the stack to deploy", autocompletion=_complete_stack_name
+    ),
     force: bool = typer.Option(False, "--force", help="Force re-download even if cached"),
 ) -> None:
     """Deploy a stack (pull sources, transform compose, start containers)."""
@@ -35,7 +49,9 @@ def deploy(
 
 
 def start(
-    stack_name: str = typer.Argument(..., help="Name of the stack to start"),
+    stack_name: str = typer.Argument(
+        ..., help="Name of the stack to start", autocompletion=_complete_stack_name
+    ),
 ) -> None:
     """Start an already deployed stack without re-transformation."""
     try:
@@ -49,7 +65,9 @@ def start(
 
 
 def stop(
-    stack_name: str = typer.Argument(..., help="Name of the stack to stop"),
+    stack_name: str = typer.Argument(
+        ..., help="Name of the stack to stop", autocompletion=_complete_stack_name
+    ),
 ) -> None:
     """Stop a running stack."""
     try:
@@ -185,7 +203,9 @@ def status(
 
 
 def info(
-    stack_name: str = typer.Argument(..., help="Name of the stack"),
+    stack_name: str = typer.Argument(
+        ..., help="Name of the stack", autocompletion=_complete_stack_name
+    ),
     show_logs: bool = typer.Option(False, "-l", "--logs", help="Include last 100 log lines"),
 ) -> None:
     """Show detailed information about a stack."""
@@ -200,7 +220,7 @@ def info(
 
         console.print(f"\n[bold]Stack:[/bold] {config.name}")
         console.print(f"[bold]Status:[/bold] {stack_status.status_text}")
-        console.print(f"[bold]Source:[/bold] {config.source.type}")
+        console.print(f"[bold]Source:[/bold] {config.source.pretty}")
         console.print(f"[bold]Compose:[/bold] {config.compose_file_path}")
 
         # Services table
@@ -262,7 +282,10 @@ def info(
 
 
 def logs(
-    stack_name: str = typer.Argument(..., help="Name of the stack (use 'system' for system containers)"),
+    stack_name: str = typer.Argument(
+        ..., help="Name of the stack (use 'system' for system containers)",
+        autocompletion=_complete_stack_name,
+    ),
     service: str | None = typer.Argument(None, help="Optional specific service name"),
     follow: bool = typer.Option(False, "-f", "--follow", help="Follow log output"),
     tail: int = typer.Option(100, "-t", "--tail", help="Output last N lines"),
@@ -321,7 +344,7 @@ def validate(
         config = load_stack_config(stack_path)
         console.print("[green]✓[/green] Stack config is valid")
         console.print(f"  Name: {config.name}")
-        console.print(f"  Source: {config.source.type}")
+        console.print(f"  Source: {config.source.pretty}")
         if config.public:
             console.print(f"  Endpoints: {len(config.public)}")
             for ep in config.public:
@@ -333,7 +356,9 @@ def validate(
 
 
 def reset(
-    stack_name: str = typer.Argument(..., help="Name of the stack to reset"),
+    stack_name: str = typer.Argument(
+        ..., help="Name of the stack to reset", autocompletion=_complete_stack_name
+    ),
     force: bool = typer.Option(False, "--force", "-f", help="Skip confirmation prompt"),
 ) -> None:
     """Reset a stack by stopping it, removing volumes, and cleaning up files."""

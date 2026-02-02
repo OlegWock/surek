@@ -10,12 +10,12 @@ from surek.exceptions import SurekError
 
 console = Console()
 
-# Main app
+# Main app with shell completion enabled
 app = typer.Typer(
     name="surek",
     help="Docker Compose orchestration tool for self-hosted services.",
     no_args_is_help=False,
-    add_completion=False,
+    add_completion=True,
 )
 
 # Register command groups
@@ -25,6 +25,7 @@ app.add_typer(backup.app, name="backup", help="Backup management commands")
 # Register individual commands from modules
 app.command(name="init")(init.init_command)
 app.command(name="new")(init.new_command)
+app.command(name="schema")(init.schema_command)
 app.command(name="deploy")(stack.deploy)
 app.command(name="start")(stack.start)
 app.command(name="stop")(stack.stop)

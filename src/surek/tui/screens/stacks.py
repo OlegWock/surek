@@ -18,6 +18,8 @@ class StacksPane(Container):
         Binding("s", "start", "Start"),
         Binding("x", "stop", "Stop"),
         Binding("i", "info", "Info"),
+        Binding("right", "info", "Info", show=False),
+        Binding("enter", "info", "Info", show=False),
     ]
 
     def compose(self) -> ComposeResult:

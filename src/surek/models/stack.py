@@ -11,6 +11,11 @@ class LocalSource(BaseModel):
 
     type: Literal["local"]
 
+    @property
+    def pretty(self) -> str:
+        """Get a human-readable description of the source."""
+        return "local"
+
 
 class GitHubSource(BaseModel):
     """GitHub source configuration - download from GitHub repository."""
@@ -51,6 +56,11 @@ class GitHubSource(BaseModel):
         if not repo_part:
             raise ValueError("GitHub repo cannot be empty")
         return v
+
+    @property
+    def pretty(self) -> str:
+        """Get a human-readable description of the source."""
+        return f"GitHub {self.slug}"
 
 
 # Discriminated union for source types

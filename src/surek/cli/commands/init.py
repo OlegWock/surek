@@ -1,5 +1,6 @@
 """Init and new commands for creating Surek configurations."""
 
+import json
 from pathlib import Path
 
 import typer
@@ -8,6 +9,48 @@ from rich.console import Console
 from rich.prompt import Confirm, Prompt
 
 console = Console()
+
+# Schema file names
+SUREK_CONFIG_SCHEMA = "surek.config.schema.json"
+STACK_CONFIG_SCHEMA = "surek.stack.schema.json"
+
+
+def generate_schemas(output_dir: Path = Path(".")) -> tuple[Path, Path]:
+    """Generate JSON schemas for surek configuration files.
+
+    Args:
+        output_dir: Directory to write schema files.
+
+    Returns:
+        Tuple of (surek_config_schema_path, stack_config_schema_path).
+    """
+    from surek.models.config import SurekConfig
+    from surek.models.stack import StackConfig
+
+    output_dir.mkdir(parents=True, exist_ok=True)
+
+    # Generate surek config schema
+    surek_schema = SurekConfig.model_json_schema()
+    surek_schema_path = output_dir / SUREK_CONFIG_SCHEMA
+    surek_schema_path.write_text(json.dumps(surek_schema, indent=2))
+
+    # Generate stack config schema
+    stack_schema = StackConfig.model_json_schema()
+    stack_schema_path = output_dir / STACK_CONFIG_SCHEMA
+    stack_schema_path.write_text(json.dumps(stack_schema, indent=2))
+
+    return surek_schema_path, stack_schema_path
+
+
+def schema_command() -> None:
+    """Generate JSON schemas for configuration files."""
+    surek_path, stack_path = generate_schemas()
+    console.print("[green]Generated schemas:[/green]")
+    console.print(f"  • {surek_path}")
+    console.print(f"  • {stack_path}")
+    console.print("\nAdd to your YAML files for autocompletion:")
+    console.print(f"  # yaml-language-server: $schema=./{SUREK_CONFIG_SCHEMA}")
+    console.print(f"  # yaml-language-server: $schema=../../{STACK_CONFIG_SCHEMA}")
 
 
 def init_command(
@@ -62,13 +105,19 @@ def init_command(
         console.print("[yellow]Aborted[/yellow]")
         raise typer.Exit(0)
 
+    # Generate schemas
+    generate_schemas()
+
+    # Write config with schema reference
     with open(config_path, "w") as f:
+        f.write(f"# yaml-language-server: $schema=./{SUREK_CONFIG_SCHEMA}\n")
         yaml.dump(config, f, default_flow_style=False, sort_keys=False)
 
     Path("stacks").mkdir(exist_ok=True)
     _add_to_gitignore("surek-data")
 
     console.print("[green]Created surek.yml and stacks/ directory[/green]")
+    console.print("[dim]Generated JSON schemas for editor autocompletion[/dim]")
 
 
 def new_command() -> None:
@@ -138,8 +187,10 @@ def new_command() -> None:
             {k: v for k, v in endpoint.items() if v is not None} for endpoint in public
         ]
 
+    # Write stack config with schema reference
     config_path = stack_dir / "surek.stack.yml"
     with open(config_path, "w") as f:
+        f.write(f"# yaml-language-server: $schema=../../{STACK_CONFIG_SCHEMA}\n")
         yaml.dump(config, f, default_flow_style=False, sort_keys=False)
 
     # Create empty compose file if local source

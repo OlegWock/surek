@@ -20,16 +20,33 @@ class SurekApp(App[None]):
     }
 
     #stacks-pane, #backups-pane {
-        padding: 1;
+        padding: 1 2;
+    }
+
+    TabbedContent {
+        padding: 0 1;
+    }
+
+    TabPane {
+        padding: 1 0;
     }
 
     DataTable {
         height: 100%;
     }
 
+    DataTable > .datatable--header {
+        padding: 0 1;
+    }
+
+    DataTable > .datatable--cursor {
+        background: $primary 30%;
+    }
+
     .title {
         text-style: bold;
-        padding: 1;
+        padding: 1 0;
+        margin-bottom: 1;
     }
 
     .error {

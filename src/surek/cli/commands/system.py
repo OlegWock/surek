@@ -1,5 +1,6 @@
 """System container management commands."""
 
+import shutil
 import subprocess
 
 import typer
@@ -9,8 +10,9 @@ from rich.prompt import Confirm
 from surek.core.config import load_config
 from surek.core.deploy import deploy_system_stack, stop_stack
 from surek.core.docker import ensure_surek_network
+from surek.core.stacks import get_available_stacks
 from surek.exceptions import SurekError
-from surek.utils.paths import get_system_dir
+from surek.utils.paths import get_data_dir, get_system_dir
 
 console = Console()
 app = typer.Typer(help="System container management")
@@ -56,6 +58,35 @@ def stop() -> None:
         raise typer.Exit(1) from None
 
 
+def _find_orphan_volume_folders() -> list[tuple[str, str]]:
+    """Find volume folders that don't belong to any known stack.
+
+    Returns:
+        List of (stack_name, folder_path) tuples for orphan folders.
+    """
+    volumes_base = get_data_dir() / "volumes"
+    if not volumes_base.exists():
+        return []
+
+    # Get all known stack names (including system)
+    known_stacks = {"surek-system"}
+    try:
+        stacks = get_available_stacks()
+        for stack in stacks:
+            if stack.valid and stack.config:
+                known_stacks.add(stack.config.name)
+    except SurekError:
+        pass
+
+    # Find folders that don't match any known stack
+    orphans: list[tuple[str, str]] = []
+    for folder in volumes_base.iterdir():
+        if folder.is_dir() and folder.name not in known_stacks:
+            orphans.append((folder.name, str(folder)))
+
+    return orphans
+
+
 @app.command(name="prune")
 def prune(
     volumes: bool = typer.Option(False, "--volumes", "-v", help="Also remove unused volumes"),
@@ -63,12 +94,19 @@ def prune(
 ) -> None:
     """Remove unused Docker resources (containers, networks, images)."""
     try:
+        # Find orphan volume folders
+        orphan_folders = _find_orphan_volume_folders()
+
         if not force:
             msg = "This will remove unused containers, networks, and images"
             if volumes:
                 msg += " [red]and volumes[/red]"
+            if orphan_folders:
+                msg += f"\n\nFound {len(orphan_folders)} orphan volume folder(s):"
+                for name, path in orphan_folders:
+                    msg += f"\n  • {name} ({path})"
             console.print(msg)
-            if not Confirm.ask("Continue?", default=False):
+            if not Confirm.ask("\nContinue?", default=False):
                 console.print("[dim]Aborted[/dim]")
                 raise typer.Exit(0)
 
@@ -109,7 +147,16 @@ def prune(
                 text=True,
             )
             if result.returncode == 0:
-                console.print("[green]✓[/green] Removed unused volumes")
+                console.print("[green]✓[/green] Removed unused Docker volumes")
+
+            # Remove orphan volume folders
+            if orphan_folders:
+                for name, path in orphan_folders:
+                    try:
+                        shutil.rmtree(path)
+                        console.print(f"[green]✓[/green] Removed orphan folder: {name}")
+                    except OSError as e:
+                        console.print(f"[yellow]Warning:[/yellow] Could not remove {name}: {e}")
 
         console.print("\n[green]Prune completed[/green]")
 
