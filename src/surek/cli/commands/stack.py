@@ -2,6 +2,7 @@
 
 import json
 import shutil
+import subprocess
 from pathlib import Path
 
 import typer
@@ -10,13 +11,26 @@ from rich.prompt import Confirm
 from rich.table import Table
 
 from surek.core.config import load_config, load_stack_config
-from surek.core.deploy import deploy_stack, start_stack, stop_stack
-from surek.core.docker import format_bytes, get_stack_status_detailed, run_docker_compose
+from surek.core.deploy import deploy_stack, deploy_system_stack, start_stack, stop_stack
+from surek.core.docker import (
+    ensure_surek_network,
+    format_bytes,
+    get_stack_status_detailed,
+    run_docker_compose,
+)
 from surek.core.stacks import get_available_stacks, get_stack_by_name
 from surek.exceptions import StackConfigError, SurekError
-from surek.utils.paths import get_data_dir, get_stack_project_dir
+from surek.utils.paths import get_data_dir, get_stack_project_dir, get_system_dir
 
 console = Console()
+
+# Reserved stack names that users cannot use
+RESERVED_STACK_NAMES = {"system", "surek-system"}
+
+
+def _is_system_stack(stack_name: str) -> bool:
+    """Check if the stack name refers to the system stack."""
+    return stack_name.lower() in RESERVED_STACK_NAMES
 
 
 def _complete_stack_name(incomplete: str) -> list[str]:
@@ -24,7 +38,7 @@ def _complete_stack_name(incomplete: str) -> list[str]:
     try:
         stacks = get_available_stacks()
         names = [s.config.name for s in stacks if s.valid and s.config]
-        # Add 'system' for logs command
+        # Add 'system' for system stack
         names.append("system")
         return [name for name in names if name.startswith(incomplete)]
     except Exception:
@@ -33,16 +47,30 @@ def _complete_stack_name(incomplete: str) -> list[str]:
 
 def deploy(
     stack_name: str = typer.Argument(
-        ..., help="Name of the stack to deploy", autocompletion=_complete_stack_name
+        ..., help="Name of the stack to deploy (use 'system' for system containers)",
+        autocompletion=_complete_stack_name,
     ),
     force: bool = typer.Option(False, "--force", help="Force re-download even if cached"),
 ) -> None:
     """Deploy a stack (pull sources, transform compose, start containers)."""
     try:
         surek_config = load_config()
-        stack = get_stack_by_name(stack_name)
-        console.print(f"Loaded stack config from {stack.path}")
-        deploy_stack(stack, surek_config, force=force)
+
+        if _is_system_stack(stack_name):
+            # Deploy system stack
+            console.print("Deploying system containers...")
+            ensure_surek_network()
+
+            # Stop existing system containers (silent)
+            system_dir = get_system_dir()
+            system_config = load_stack_config(system_dir / "surek.stack.yml")
+            stop_stack(system_config, silent=True)
+
+            deploy_system_stack(surek_config)
+        else:
+            stack = get_stack_by_name(stack_name)
+            console.print(f"Loaded stack config from {stack.path}")
+            deploy_stack(stack, surek_config, force=force)
     except SurekError as e:
         console.print(f"[red]Error:[/red] {e}")
         raise typer.Exit(1) from None
@@ -50,15 +78,28 @@ def deploy(
 
 def start(
     stack_name: str = typer.Argument(
-        ..., help="Name of the stack to start", autocompletion=_complete_stack_name
+        ..., help="Name of the stack to start (use 'system' for system containers)",
+        autocompletion=_complete_stack_name,
     ),
 ) -> None:
     """Start an already deployed stack without re-transformation."""
     try:
-        stack = get_stack_by_name(stack_name)
-        console.print(f"Loaded stack config from {stack.path}")
-        if stack.config:
-            start_stack(stack.config)
+        if _is_system_stack(stack_name):
+            # Start system stack (same as deploy for system)
+            surek_config = load_config()
+            console.print("Starting system containers...")
+            ensure_surek_network()
+
+            system_dir = get_system_dir()
+            system_config = load_stack_config(system_dir / "surek.stack.yml")
+            stop_stack(system_config, silent=True)
+
+            deploy_system_stack(surek_config)
+        else:
+            stack = get_stack_by_name(stack_name)
+            console.print(f"Loaded stack config from {stack.path}")
+            if stack.config:
+                start_stack(stack.config)
     except SurekError as e:
         console.print(f"[red]Error:[/red] {e}")
         raise typer.Exit(1) from None
@@ -66,15 +107,21 @@ def start(
 
 def stop(
     stack_name: str = typer.Argument(
-        ..., help="Name of the stack to stop", autocompletion=_complete_stack_name
+        ..., help="Name of the stack to stop (use 'system' for system containers)",
+        autocompletion=_complete_stack_name,
     ),
 ) -> None:
     """Stop a running stack."""
     try:
-        stack = get_stack_by_name(stack_name)
-        console.print(f"Loaded stack config from {stack.path}")
-        if stack.config:
-            stop_stack(stack.config, silent=False)
+        if _is_system_stack(stack_name):
+            system_dir = get_system_dir()
+            system_config = load_stack_config(system_dir / "surek.stack.yml")
+            stop_stack(system_config, silent=False)
+        else:
+            stack = get_stack_by_name(stack_name)
+            console.print(f"Loaded stack config from {stack.path}")
+            if stack.config:
+                stop_stack(stack.config, silent=False)
     except SurekError as e:
         console.print(f"[red]Error:[/red] {e}")
         raise typer.Exit(1) from None
@@ -93,7 +140,7 @@ def status(
         # System status
         system_status = get_stack_status_detailed("surek-system", include_stats=stats)
         system_result: dict[str, object] = {
-            "name": "System containers",
+            "name": "system",
             "status": system_status.status_text,
             "health": system_status.health_summary,
             "endpoints": [],
@@ -211,56 +258,95 @@ def info(
     """Show detailed information about a stack."""
     try:
         surek_config = load_config()
-        stack = get_stack_by_name(stack_name)
-        if not stack.config:
-            raise SurekError("Invalid stack config")
 
-        config = stack.config
-        stack_status = get_stack_status_detailed(config.name, include_stats=True)
+        if _is_system_stack(stack_name):
+            # System stack info
+            stack_status = get_stack_status_detailed("surek-system", include_stats=True)
 
-        console.print(f"\n[bold]Stack:[/bold] {config.name}")
-        console.print(f"[bold]Status:[/bold] {stack_status.status_text}")
-        console.print(f"[bold]Source:[/bold] {config.source.pretty}")
-        console.print(f"[bold]Compose:[/bold] {config.compose_file_path}")
+            console.print("\n[bold]Stack:[/bold] system")
+            console.print(f"[bold]Status:[/bold] {stack_status.status_text}")
+            console.print("[bold]Source:[/bold] built-in")
 
-        # Services table
-        if stack_status.services:
-            console.print("\n[bold]Services:[/bold]")
-            services_table = Table()
-            services_table.add_column("Service")
-            services_table.add_column("Status")
-            services_table.add_column("Health")
-            services_table.add_column("CPU")
-            services_table.add_column("Memory")
+            # Services table
+            if stack_status.services:
+                console.print("\n[bold]Services:[/bold]")
+                services_table = Table()
+                services_table.add_column("Service")
+                services_table.add_column("Status")
+                services_table.add_column("Health")
+                services_table.add_column("CPU")
+                services_table.add_column("Memory")
 
-            for svc in stack_status.services:
-                status_text = svc.status
-                if svc.status == "running":
-                    status_text = f"[green]{status_text}[/green]"
-                elif svc.status == "exited":
-                    status_text = f"[red]{status_text}[/red]"
+                for svc in stack_status.services:
+                    status_text = svc.status
+                    if svc.status == "running":
+                        status_text = f"[green]{status_text}[/green]"
+                    elif svc.status == "exited":
+                        status_text = f"[red]{status_text}[/red]"
 
-                services_table.add_row(
-                    svc.name,
-                    status_text,
-                    svc.health or "-",
-                    f"{svc.cpu_percent:.1f}%",
-                    format_bytes(svc.memory_bytes),
-                )
+                    services_table.add_row(
+                        svc.name,
+                        status_text,
+                        svc.health or "-",
+                        f"{svc.cpu_percent:.1f}%",
+                        format_bytes(svc.memory_bytes),
+                    )
 
-            console.print(services_table)
+                console.print(services_table)
+        else:
+            stack = get_stack_by_name(stack_name)
+            if not stack.config:
+                raise SurekError("Invalid stack config")
 
-        # Public endpoints
-        if config.public:
-            console.print("\n[bold]Public Endpoints:[/bold]")
-            for endpoint in config.public:
-                domain = endpoint.domain.replace("<root>", surek_config.root_domain)
-                console.print(f"  • https://{domain} → {endpoint.target}")
+            config = stack.config
+            stack_status = get_stack_status_detailed(config.name, include_stats=True)
+
+            console.print(f"\n[bold]Stack:[/bold] {config.name}")
+            console.print(f"[bold]Status:[/bold] {stack_status.status_text}")
+            console.print(f"[bold]Source:[/bold] {config.source.pretty}")
+            console.print(f"[bold]Compose:[/bold] {config.compose_file_path}")
+
+            # Services table
+            if stack_status.services:
+                console.print("\n[bold]Services:[/bold]")
+                services_table = Table()
+                services_table.add_column("Service")
+                services_table.add_column("Status")
+                services_table.add_column("Health")
+                services_table.add_column("CPU")
+                services_table.add_column("Memory")
+
+                for svc in stack_status.services:
+                    status_text = svc.status
+                    if svc.status == "running":
+                        status_text = f"[green]{status_text}[/green]"
+                    elif svc.status == "exited":
+                        status_text = f"[red]{status_text}[/red]"
+
+                    services_table.add_row(
+                        svc.name,
+                        status_text,
+                        svc.health or "-",
+                        f"{svc.cpu_percent:.1f}%",
+                        format_bytes(svc.memory_bytes),
+                    )
+
+                console.print(services_table)
+
+            # Public endpoints
+            if config.public:
+                console.print("\n[bold]Public Endpoints:[/bold]")
+                for endpoint in config.public:
+                    domain = endpoint.domain.replace("<root>", surek_config.root_domain)
+                    console.print(f"  • https://{domain} → {endpoint.target}")
 
         # Logs
         if show_logs:
             console.print("\n[bold]Recent Logs:[/bold]")
-            project_dir = get_stack_project_dir(config.name)
+            if _is_system_stack(stack_name):
+                project_dir = get_stack_project_dir("surek-system")
+            else:
+                project_dir = get_stack_project_dir(stack.config.name)  # type: ignore[union-attr]
             compose_file = project_dir / "docker-compose.surek.yml"
             if compose_file.exists():
                 try:
@@ -293,7 +379,7 @@ def logs(
     """View logs for a stack or specific service."""
     try:
         # Handle system stack specially
-        if stack_name in ("system", "surek-system"):
+        if _is_system_stack(stack_name):
             project_dir = get_stack_project_dir("surek-system")
             compose_file = project_dir / "docker-compose.surek.yml"
         else:
@@ -363,6 +449,9 @@ def reset(
 ) -> None:
     """Reset a stack by stopping it, removing volumes, and cleaning up files."""
     try:
+        if _is_system_stack(stack_name):
+            raise SurekError("Cannot reset the system stack. Use 'surek stop system' instead.")
+
         stack = get_stack_by_name(stack_name)
         if not stack.config:
             raise SurekError("Invalid stack config")
@@ -404,5 +493,111 @@ def reset(
         console.print(f"  Run 'surek deploy {config.name}' to redeploy")
 
     except SurekError as e:
+        console.print(f"[red]Error:[/red] {e}")
+        raise typer.Exit(1) from None
+
+
+def _find_orphan_volume_folders() -> list[tuple[str, str]]:
+    """Find volume folders that don't belong to any known stack.
+
+    Returns:
+        List of (stack_name, folder_path) tuples for orphan folders.
+    """
+    volumes_base = get_data_dir() / "volumes"
+    if not volumes_base.exists():
+        return []
+
+    # Get all known stack names (including system)
+    known_stacks = {"surek-system"}
+    try:
+        stacks = get_available_stacks()
+        for stack in stacks:
+            if stack.valid and stack.config:
+                known_stacks.add(stack.config.name)
+    except SurekError:
+        pass
+
+    # Find folders that don't match any known stack
+    orphans: list[tuple[str, str]] = []
+    for folder in volumes_base.iterdir():
+        if folder.is_dir() and folder.name not in known_stacks:
+            orphans.append((folder.name, str(folder)))
+
+    return orphans
+
+
+def prune(
+    volumes: bool = typer.Option(False, "--volumes", "-v", help="Also remove unused volumes"),
+    force: bool = typer.Option(False, "--force", "-f", help="Skip confirmation prompt"),
+) -> None:
+    """Remove unused Docker resources (containers, networks, images)."""
+    try:
+        # Find orphan volume folders
+        orphan_folders = _find_orphan_volume_folders()
+
+        if not force:
+            msg = "This will remove unused containers, networks, and images"
+            if volumes:
+                msg += " [red]and volumes[/red]"
+            if orphan_folders:
+                msg += f"\n\nFound {len(orphan_folders)} orphan volume folder(s):"
+                for name, path in orphan_folders:
+                    msg += f"\n  • {name} ({path})"
+            console.print(msg)
+            if not Confirm.ask("\nContinue?", default=False):
+                console.print("[dim]Aborted[/dim]")
+                raise typer.Exit(0)
+
+        console.print("Pruning unused Docker resources...")
+
+        # Prune containers
+        result = subprocess.run(
+            ["docker", "container", "prune", "-f"],
+            capture_output=True,
+            text=True,
+        )
+        if result.returncode == 0:
+            console.print("[green]✓[/green] Removed unused containers")
+
+        # Prune networks
+        result = subprocess.run(
+            ["docker", "network", "prune", "-f"],
+            capture_output=True,
+            text=True,
+        )
+        if result.returncode == 0:
+            console.print("[green]✓[/green] Removed unused networks")
+
+        # Prune images
+        result = subprocess.run(
+            ["docker", "image", "prune", "-f"],
+            capture_output=True,
+            text=True,
+        )
+        if result.returncode == 0:
+            console.print("[green]✓[/green] Removed unused images")
+
+        # Prune volumes if requested
+        if volumes:
+            result = subprocess.run(
+                ["docker", "volume", "prune", "-f"],
+                capture_output=True,
+                text=True,
+            )
+            if result.returncode == 0:
+                console.print("[green]✓[/green] Removed unused Docker volumes")
+
+            # Remove orphan volume folders
+            if orphan_folders:
+                for name, path in orphan_folders:
+                    try:
+                        shutil.rmtree(path)
+                        console.print(f"[green]✓[/green] Removed orphan folder: {name}")
+                    except OSError as e:
+                        console.print(f"[yellow]Warning:[/yellow] Could not remove {name}: {e}")
+
+        console.print("\n[green]Prune completed[/green]")
+
+    except Exception as e:
         console.print(f"[red]Error:[/red] {e}")
         raise typer.Exit(1) from None

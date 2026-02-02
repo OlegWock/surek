@@ -118,6 +118,10 @@ class StackConfig(BaseModel):
         """Validate stack name format."""
         if not v or not v.strip():
             raise ValueError("Stack name cannot be empty")
+        # Check for reserved names
+        reserved_names = {"system", "surek-system"}
+        if v.lower() in reserved_names:
+            raise ValueError(f"'{v}' is a reserved stack name and cannot be used")
         # Validate characters suitable for Docker project names
         if not re.match(r"^[a-zA-Z0-9][a-zA-Z0-9_-]*$", v):
             raise ValueError(

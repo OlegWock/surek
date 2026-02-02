@@ -5,7 +5,7 @@ import typer
 from rich.console import Console
 
 from surek import __version__
-from surek.cli.commands import backup, init, stack, system
+from surek.cli.commands import backup, init, stack
 from surek.exceptions import SurekError
 
 console = Console()
@@ -19,7 +19,6 @@ app = typer.Typer(
 )
 
 # Register command groups
-app.add_typer(system.app, name="system", help="System container management")
 app.add_typer(backup.app, name="backup", help="Backup management commands")
 
 # Register individual commands from modules
@@ -34,6 +33,7 @@ app.command(name="info")(stack.info)
 app.command(name="logs")(stack.logs)
 app.command(name="validate")(stack.validate)
 app.command(name="reset")(stack.reset)
+app.command(name="prune")(stack.prune)
 
 
 def version_callback(value: bool) -> None:
