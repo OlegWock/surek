@@ -10,6 +10,7 @@ from textual.widget import Widget
 from textual.widgets import Input, RichLog, TabbedContent, TabPane
 from textual.worker import Worker, get_current_worker
 
+from surek.core.docker import run_docker_compose
 from surek.exceptions import SurekError
 from surek.utils.paths import get_stack_project_dir
 
@@ -160,8 +161,6 @@ class LogsPanel(Widget):
         project_dir, compose_file = paths
 
         try:
-            from surek.core.docker import run_docker_compose
-
             # Use timestamps for proper chronological sorting
             args = ["--tail", "100", "--no-color", "--timestamps"]
             if service:

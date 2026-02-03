@@ -1,5 +1,6 @@
 """Stack management commands."""
 
+import contextlib
 import json
 import shutil
 import subprocess
@@ -18,19 +19,42 @@ from surek.core.docker import (
     get_stack_status_detailed,
     run_docker_compose,
 )
-from surek.core.stacks import get_available_stacks, get_stack_by_name
+from surek.core.stacks import RESERVED_STACK_NAMES, get_available_stacks, get_stack_by_name
 from surek.exceptions import StackConfigError, SurekError
 from surek.utils.paths import get_data_dir, get_stack_project_dir, get_system_dir
 
 console = Console()
 
-# Reserved stack names that users cannot use
-RESERVED_STACK_NAMES = {"system", "surek-system"}
-
 
 def _is_system_stack(stack_name: str) -> bool:
     """Check if the stack name refers to the system stack."""
     return stack_name.lower() in RESERVED_STACK_NAMES
+
+
+def _ensure_system_running() -> None:
+    """Verify that the system stack is running.
+
+    Raises:
+        typer.Exit: If system stack is not running.
+    """
+    try:
+        status = get_stack_status_detailed("surek-system", include_stats=False)
+        running_count = sum(1 for svc in status.services if svc.status == "running")
+        if running_count == 0:
+            console.print("[red]Error:[/red] System stack is not running.")
+            console.print("\nThe system stack provides essential services (Caddy reverse proxy, etc.)")
+            console.print("that are required for user stacks to work properly.")
+            console.print("\n[yellow]Run this command first:[/yellow]")
+            console.print("  surek start system")
+            raise typer.Exit(1)
+    except SurekError:
+        # If we can't check status, system is likely not deployed
+        console.print("[red]Error:[/red] System stack is not running.")
+        console.print("\nThe system stack provides essential services (Caddy reverse proxy, etc.)")
+        console.print("that are required for user stacks to work properly.")
+        console.print("\n[yellow]Run this command first:[/yellow]")
+        console.print("  surek start system")
+        raise typer.Exit(1) from None
 
 
 def _complete_stack_name(incomplete: str) -> list[str]:
@@ -68,6 +92,7 @@ def deploy(
 
             deploy_system_stack(surek_config)
         else:
+            _ensure_system_running()
             stack = get_stack_by_name(stack_name)
             console.print(f"Loaded stack config from {stack.path}")
             deploy_stack(stack, surek_config, force=force)
@@ -96,6 +121,7 @@ def start(
 
             deploy_system_stack(surek_config)
         else:
+            _ensure_system_running()
             stack = get_stack_by_name(stack_name)
             console.print(f"Loaded stack config from {stack.path}")
             if stack.config:
@@ -193,7 +219,7 @@ def status(
         if json_output:
             console.print(json.dumps(results, indent=2))
         else:
-            table = Table(title="Surek Status")
+            table = Table(title="Surek stacks status")
             table.add_column("Stack", style="cyan")
             table.add_column("Status")
             table.add_column("Health")
@@ -253,7 +279,7 @@ def info(
     stack_name: str = typer.Argument(
         ..., help="Name of the stack", autocompletion=_complete_stack_name
     ),
-    show_logs: bool = typer.Option(False, "-l", "--logs", help="Include last 100 log lines"),
+    show_logs: bool = typer.Option(False, "-l", "--logs", help="Include last 40 log lines"),
 ) -> None:
     """Show detailed information about a stack."""
     try:
@@ -354,7 +380,7 @@ def info(
                         compose_file=compose_file,
                         project_dir=project_dir,
                         command="logs",
-                        args=["--tail", "100"],
+                        args=["--tail", "40"],
                         capture_output=True,
                         silent=True,
                     )
@@ -473,8 +499,6 @@ def reset(
             raise typer.Exit(0)
 
         # Stop the stack
-        import contextlib
-
         console.print("\nStopping containers...")
         with contextlib.suppress(SurekError):
             stop_stack(config, silent=True)

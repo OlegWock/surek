@@ -47,6 +47,7 @@ services:
       - ./backup-daily.env:/etc/dockervolumebackup/conf.d/backup-daily.env
       - ./backup-weekly.env:/etc/dockervolumebackup/conf.d/backup-weekly.env
       - ./backup-monthly.env:/etc/dockervolumebackup/conf.d/backup-monthly.env
+      - ./backup-manual.env:/etc/dockervolumebackup/conf.d/backup-manual.env
       - /etc/timezone:/etc/timezone:ro
       - /etc/localtime:/etc/localtime:ro
 

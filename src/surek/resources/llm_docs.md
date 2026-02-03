@@ -246,6 +246,9 @@ Surek manages these system services:
 | Daily | 2:00 AM | 7 days |
 | Weekly | 3:00 AM Monday | 60 days |
 | Monthly | 4:00 AM 1st | 730 days |
+| Manual | On-demand only | 3650 days (~10 years) |
+
+Note: `surek backup run` creates a "manual" backup with long retention. Scheduled backups (daily/weekly/monthly) run automatically.
 
 ## How Deployment Works
 

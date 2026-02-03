@@ -115,13 +115,13 @@ class StackConfig(BaseModel):
     @field_validator("name")
     @classmethod
     def validate_name(cls, v: str) -> str:
-        """Validate stack name format."""
+        """Validate stack name format.
+
+        Note: Reserved name validation ('system', 'surek-system') is done at the
+        CLI/business layer, not here, to allow loading the actual system stack config.
+        """
         if not v or not v.strip():
             raise ValueError("Stack name cannot be empty")
-        # Check for reserved names
-        reserved_names = {"system", "surek-system"}
-        if v.lower() in reserved_names:
-            raise ValueError(f"'{v}' is a reserved stack name and cannot be used")
         # Validate characters suitable for Docker project names
         if not re.match(r"^[a-zA-Z0-9][a-zA-Z0-9_-]*$", v):
             raise ValueError(

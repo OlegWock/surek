@@ -7,9 +7,13 @@ from textual.events import Click
 from textual.message import Message
 from textual.widgets import DataTable
 
-from surek.core.docker import get_stack_status_detailed
-from surek.core.stacks import get_available_stacks
+from surek.core.config import load_config, load_stack_config
+from surek.core.deploy import deploy_stack, deploy_system_stack, start_stack, stop_stack
+from surek.core.docker import ensure_surek_network, get_stack_status_detailed
+from surek.core.stacks import get_available_stacks, get_stack_by_name
 from surek.exceptions import SurekError
+from surek.tui.screens.stack_info import StackInfoScreen
+from surek.utils.paths import get_system_dir
 
 # Row height for table padding (1 = default, 3 = extra vertical space)
 ROW_HEIGHT = 3
@@ -144,10 +148,6 @@ class StacksPane(Container):
     async def _deploy_stack(self, stack_name: str) -> None:
         """Deploy a stack asynchronously."""
         try:
-            from surek.core.config import load_config
-            from surek.core.deploy import deploy_stack
-            from surek.core.stacks import get_stack_by_name
-
             config = load_config()
             stack = get_stack_by_name(stack_name)
             deploy_stack(stack, config)
@@ -168,14 +168,7 @@ class StacksPane(Container):
     async def _start_stack(self, stack_name: str) -> None:
         """Start a stack asynchronously."""
         try:
-            from surek.core.deploy import start_stack
-            from surek.core.stacks import get_stack_by_name
-
             if stack_name == "System":
-                from surek.core.config import load_config
-                from surek.core.deploy import deploy_system_stack
-                from surek.core.docker import ensure_surek_network
-
                 config = load_config()
                 ensure_surek_network()
                 deploy_system_stack(config)
@@ -201,13 +194,7 @@ class StacksPane(Container):
     async def _stop_stack(self, stack_name: str) -> None:
         """Stop a stack asynchronously."""
         try:
-            from surek.core.deploy import stop_stack
-            from surek.core.stacks import get_stack_by_name
-
             if stack_name == "System":
-                from surek.core.config import load_stack_config
-                from surek.utils.paths import get_system_dir
-
                 system_dir = get_system_dir()
                 system_config = load_stack_config(system_dir / "surek.stack.yml")
                 stop_stack(system_config, silent=False)
@@ -239,18 +226,11 @@ class StacksPane(Container):
             return
 
         try:
-            from surek.tui.screens.stack_info import StackInfoScreen
-
             if stack_name == "System":
-                from surek.core.config import load_stack_config
-                from surek.utils.paths import get_system_dir
-
                 system_dir = get_system_dir()
                 system_config = load_stack_config(system_dir / "surek.stack.yml")
                 self.app.push_screen(StackInfoScreen(system_config))
             else:
-                from surek.core.stacks import get_stack_by_name
-
                 stack = get_stack_by_name(stack_name)
                 if stack.config:
                     self.app.push_screen(StackInfoScreen(stack.config))

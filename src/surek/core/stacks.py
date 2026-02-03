@@ -8,6 +8,9 @@ from surek.exceptions import SurekError
 from surek.models.stack import StackConfig
 from surek.utils.paths import get_stacks_dir
 
+# Reserved stack names that users cannot use
+RESERVED_STACK_NAMES = {"system", "surek-system"}
+
 
 @dataclass
 class StackInfo:
@@ -45,13 +48,24 @@ def get_available_stacks() -> list[StackInfo]:
     for config_path in stacks_dir.glob("**/surek.stack.yml"):
         try:
             config = load_stack_config(config_path)
-            results.append(
-                StackInfo(
-                    config=config,
-                    path=config_path,
-                    valid=True,
+            # Check for reserved names
+            if config.name.lower() in RESERVED_STACK_NAMES:
+                results.append(
+                    StackInfo(
+                        config=None,
+                        path=config_path,
+                        valid=False,
+                        error=f"'{config.name}' is a reserved stack name and cannot be used",
+                    )
                 )
-            )
+            else:
+                results.append(
+                    StackInfo(
+                        config=config,
+                        path=config_path,
+                        valid=True,
+                    )
+                )
         except Exception as e:
             results.append(
                 StackInfo(
@@ -80,11 +94,18 @@ def get_stack_by_name(name: str) -> StackInfo:
     if not name:
         raise SurekError("Invalid stack name")
 
-    for stack in get_available_stacks():
+    stacks = get_available_stacks()
+    for stack in stacks:
         if stack.valid and stack.config and stack.config.name == name:
             return stack
 
-    raise SurekError(f"Stack with name '{name}' not found")
+    # Build helpful error message with available stacks
+    valid_names = [s.config.name for s in stacks if s.valid and s.config]
+    if valid_names:
+        names_list = "- " + "\n - ".join(sorted(valid_names))
+        raise SurekError(f"Stack '{name}' not found. \n\nAvailable stacks:\n {names_list}")
+    else:
+        raise SurekError(f"Stack '{name}' not found. No stacks available in stacks/ directory.")
 
 
 def get_stack_source_dir(stack: StackInfo) -> Path:

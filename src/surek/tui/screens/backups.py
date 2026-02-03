@@ -5,7 +5,7 @@ from textual.binding import Binding
 from textual.containers import Container
 from textual.widgets import DataTable
 
-from surek.core.backup import format_bytes, list_backups
+from surek.core.backup import format_bytes, list_backups, trigger_backup
 from surek.core.config import load_config
 from surek.exceptions import SurekError
 
@@ -112,8 +112,6 @@ class BackupsPane(Container):
     async def _run_backup(self) -> None:
         """Run backup asynchronously."""
         try:
-            from surek.core.backup import trigger_backup
-
             trigger_backup()
             self.app.notify("Backup completed", severity="information")
             self.refresh_data()

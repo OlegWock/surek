@@ -79,6 +79,8 @@ def list_backups(config: BackupConfig) -> list[BackupInfo]:
                 backup_type = "weekly"
             elif name.startswith("monthly-"):
                 backup_type = "monthly"
+            elif name.startswith("manual-"):
+                backup_type = "manual"
             else:
                 backup_type = "unknown"
 
@@ -115,11 +117,8 @@ def download_backup(config: BackupConfig, backup_name: str, target_path: Path) -
         raise BackupError(f"Failed to download backup: {e}") from e
 
 
-def trigger_backup(backup_type: str = "daily") -> None:
+def trigger_backup() -> None:
     """Trigger a manual backup by executing command in backup container.
-
-    Args:
-        backup_type: Type of backup (daily, weekly, monthly).
 
     Raises:
         BackupError: If backup trigger fails.
@@ -140,22 +139,27 @@ def trigger_backup(backup_type: str = "daily") -> None:
 
         container = containers[0]
 
-        # Execute backup command
-        console.print(f"Triggering {backup_type} backup...")
+        # Execute backup command with manual config (long retention, never auto-triggers)
+        # Source the config file first, then run backup (required for multi-schedule setups)
+        console.print("Triggering manual backup...")
         exit_code, output = container.exec_run(
-            f"/usr/local/bin/backup --config /etc/dockervolumebackup/conf.d/backup-{backup_type}.env",
+            [
+                "/bin/sh",
+                "-c",
+                "set -a; source /etc/dockervolumebackup/conf.d/backup-manual.env; set +a && backup",
+            ],
             stream=False,
         )
 
         if exit_code != 0:
             error_msg = output.decode() if output else "Unknown error"
-            record_backup_failure(backup_type, error_msg)
+            record_backup_failure("manual", error_msg)
             raise BackupError(f"Backup failed: {error_msg}")
 
         console.print("[green]Backup completed successfully[/green]")
 
     except DockerException as e:
-        record_backup_failure(backup_type, str(e))
+        record_backup_failure("manual", str(e))
         raise BackupError(f"Docker error: {e}") from e
 
 
