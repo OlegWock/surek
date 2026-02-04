@@ -17,11 +17,11 @@ It manages Caddy reverse proxy for your containers with automatic HTTPS, backs u
 Surek requires Python 3.12+, Docker with Compose plugin, and a domain pointed to your server.
 
 ```bash
-# Using pip
-pip install surek
-
 # Using uv (recommended)
 uv tool install surek
+
+# Using pip
+pip install surek
 ```
 
 If your Docker requires `sudo`, install and run Surek with `sudo` as well.
