@@ -56,6 +56,19 @@ def help_llm_callback(value: bool) -> None:
         raise typer.Exit()
 
 
+def help_readme_callback(value: bool) -> None:
+    """Print README and exit."""
+    if value:
+        try:
+            from importlib import resources
+
+            readme_path = resources.files("surek.resources") / "README.md"
+            console.print(readme_path.read_text())
+        except FileNotFoundError:
+            console.print("[yellow]README not available.[/yellow]")
+        raise typer.Exit()
+
+
 @app.callback(invoke_without_command=True)
 def main(
     ctx: typer.Context,
@@ -65,6 +78,10 @@ def main(
     help_llm: bool | None = typer.Option(
         None, "--help-llm", callback=help_llm_callback, is_eager=True,
         help="Print full documentation for LLM consumption"
+    ),
+    help_readme: bool | None = typer.Option(
+        None, "--help-readme", callback=help_readme_callback, is_eager=True,
+        help="Print README documentation"
     ),
 ) -> None:
     """Surek - Docker Compose orchestration for self-hosted services.

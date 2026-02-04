@@ -58,7 +58,7 @@ Surek works great with LLM agents. So if you'd prefer to outsource the work to t
 ```plaintext
 Deploy <you service name and details> using `surek`. 
 
-Surek is a Docker Compose orchestration tool for self-hosted services. Run `surek --help-llm` to get full documentation. Check whether current folder is already initialized as Surek project. Initialize if not. If you require additional data from me (like root domain) —pause and ask. Then create new stack and configure it according to deployed service. Make no mistake. 
+Surek is a Docker Compose orchestration tool for self-hosted services. Run `surek --help-readme` to get quickstart documentation or `surek --help-llm` to get full documentation. Check whether current folder is already initialized as Surek project. Initialize if not. If you require additional data from me (like root domain) —pause and ask. Then create new stack and configure it according to deployed service. Make no mistake. 
 ```
 
 You can make your favorite LLM agent do the work for you. Agents can get complete Surek documentation by running `surek --help-llm`. Just tell it what you want to deploy and let metal head figure out the rest. Here is prompt template for you.
