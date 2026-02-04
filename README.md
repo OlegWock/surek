@@ -231,7 +231,7 @@ project/
 
 When writing Docker Compose files for Surek:
 
-1. **Use named volumes**: Surek can reliably backup only named volumes. Bind mounts will still work, but won't be backed up.
+1. **Use named volumes**: Surek can reliably backup only named volumes without additional configuration (like custom driver). Bind mounts or volumes with custom configuration will still work, but won't be backed up.
 
 2. **Unique service names**: since all stacks share same network, each of services in your `docker-compose.yml` have to have unique name. For example, if you have two separate web apps both of which use Postgres, and you want to use separate Postgres instance for each, you have to give each of them unique name, they can't both be `postgres`. You can name them something like `postgres-foo` and `postgres-bar`.
 
