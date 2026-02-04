@@ -54,34 +54,21 @@ def deploy_stack(
 
     console.print(f"Deploying stack '{config.name}'")
 
-    # Clean existing project directory
-    if project_dir.exists():
-        shutil.rmtree(project_dir)
-    project_dir.mkdir(parents=True)
-
-    # Handle GitHub source
     if isinstance(config.source, GitHubSource):
         _handle_github_source(config, project_dir, surek_config, pull)
+    else:
+        if project_dir.exists():
+            shutil.rmtree(project_dir)
+        project_dir.mkdir(parents=True)
 
-    # Copy local files (overwrite GitHub files if present)
     _copy_folder_recursive(source_dir, project_dir)
 
-    # Find and transform compose file
     compose_file_path = project_dir / config.compose_file_path
     if not compose_file_path.exists():
         raise SurekError(f"Couldn't find compose file at {compose_file_path}")
 
     compose_spec = read_compose_file(compose_file_path)
-
-    # System-specific transformation
-    is_system = config.name == "surek-system" and source_dir == get_system_dir()
-    if is_system:
-        compose_spec = transform_system_compose(compose_spec, surek_config)
-
-    # General transformation (includes variable expansion)
     transformed = transform_compose_file(compose_spec, config, surek_config)
-
-    # Write transformed file
     patched_path = project_dir / "docker-compose.surek.yml"
     write_compose_file(patched_path, transformed)
     print_dim(f"Saved patched compose file at {patched_path}")
@@ -102,7 +89,6 @@ def deploy_system_stack(surek_config: SurekConfig) -> None:
     system_config_path = system_dir / "surek.stack.yml"
     system_config = load_stack_config(system_config_path)
 
-    # Filter public endpoints based on enabled services
     filtered_public = []
     for endpoint in system_config.public:
         service_name = endpoint.service_name
@@ -113,7 +99,6 @@ def deploy_system_stack(surek_config: SurekConfig) -> None:
         filtered_public.append(endpoint)
 
     # Create a modified config with filtered public endpoints
-    # We need to create a new StackConfig with the filtered public list
     system_config = StackConfig(
         name=system_config.name,
         source=system_config.source,
@@ -127,30 +112,20 @@ def deploy_system_stack(surek_config: SurekConfig) -> None:
 
     console.print("Deploying system containers")
 
-    # Clean existing project directory
     if project_dir.exists():
         shutil.rmtree(project_dir)
     project_dir.mkdir(parents=True)
 
-    # Copy system files
     _copy_folder_recursive(system_dir, project_dir)
 
-    # Find and transform compose file
     compose_file_path = project_dir / system_config.compose_file_path
     compose_spec = read_compose_file(compose_file_path)
-
-    # System-specific transformation (remove disabled services)
     compose_spec = transform_system_compose(compose_spec, surek_config)
-
-    # General transformation
     transformed = transform_compose_file(compose_spec, system_config, surek_config)
-
-    # Write transformed file
     patched_path = project_dir / "docker-compose.surek.yml"
     write_compose_file(patched_path, transformed)
     print_dim(f"Saved patched compose file at {patched_path}")
 
-    # Start containers
     start_stack(system_config)
 
 
@@ -220,7 +195,7 @@ def _handle_github_source(
     project_dir: Path,
     surek_config: SurekConfig,
     pull: bool,
-) -> None:
+) -> bool:
     """Handle GitHub source for a stack.
 
     Downloads from GitHub if not cached or pull is True.
@@ -230,32 +205,36 @@ def _handle_github_source(
         project_dir: The project directory to extract into.
         surek_config: The main Surek configuration.
         pull: If True, force re-download.
+
+    Returns:
+        True if cached version was used (project_dir preserved), False if fresh download.
     """
     if not isinstance(config.source, GitHubSource):
-        return
+        return False
 
     source = config.source
 
     if not pull:
         # Check if we can use cached version
         cached_commit = get_cached_commit(config.name)
-        if cached_commit:
+        if cached_commit and project_dir.exists():
             try:
                 latest_commit = get_latest_commit(source, surek_config)
                 if cached_commit == latest_commit:
                     print_dim("No changes detected, using cached version")
-                    # Copy from previous project dir if it exists
-                    old_project_dir = get_stack_project_dir(config.name)
-                    if old_project_dir.exists():
-                        _copy_folder_recursive(old_project_dir, project_dir)
-                        return
+                    return True
             except Exception:
                 # If we can't check, just download fresh
                 pass
 
-    # Download from GitHub
+    # Clean and download from GitHub
+    if project_dir.exists():
+        shutil.rmtree(project_dir)
+    project_dir.mkdir(parents=True)
+
     commit = pull_github_repo(source, project_dir, surek_config)
     save_cached_commit(config.name, commit)
+    return False
 
 
 def _copy_folder_recursive(source: Path, destination: Path) -> None:
@@ -270,10 +249,6 @@ def _copy_folder_recursive(source: Path, destination: Path) -> None:
     for item in source.iterdir():
         src_path = item
         dst_path = destination / item.name
-
-        # Skip surek.stack.yml and docker-compose.surek.yml
-        if item.name == "docker-compose.surek.yml":
-            continue
 
         if item.is_dir():
             _copy_folder_recursive(src_path, dst_path)

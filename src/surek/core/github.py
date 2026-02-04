@@ -139,11 +139,12 @@ def pull_github_repo(
         "Accept": "application/vnd.github.v3+json",
     }
 
-    # Download zipball
     url = f"https://api.github.com/repos/{source.owner}/{source.repo}/zipball/{source.ref}"
 
     try:
-        with httpx.stream("GET", url, headers=headers, timeout=120.0, follow_redirects=True) as response:
+        with httpx.stream(
+            "GET", url, headers=headers, timeout=120.0, follow_redirects=True
+        ) as response:
             response.raise_for_status()
             zip_content = BytesIO(response.read())
     except httpx.HTTPStatusError as e:
@@ -158,7 +159,6 @@ def pull_github_repo(
     except httpx.RequestError as e:
         raise GitHubError(f"Failed to download from GitHub: {e}") from e
 
-    # Extract to temporary directory first
     with tempfile.TemporaryDirectory() as temp_dir:
         temp_path = Path(temp_dir)
 
@@ -181,7 +181,6 @@ def pull_github_repo(
         # Format: owner-repo-shortsha
         commit_sha = root_folder.name.rsplit("-", 1)[-1]
 
-        # Move contents to target directory
         target_dir.mkdir(parents=True, exist_ok=True)
         for item in root_folder.iterdir():
             dest = target_dir / item.name

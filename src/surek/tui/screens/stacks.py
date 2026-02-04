@@ -10,7 +10,7 @@ from textual.widgets import DataTable
 from surek.core.config import load_config, load_stack_config
 from surek.core.deploy import deploy_stack, deploy_system_stack, start_stack, stop_stack
 from surek.core.docker import ensure_surek_network, get_stack_status_detailed
-from surek.core.stacks import get_available_stacks, get_stack_by_name
+from surek.core.stacks import SYSTEM_STACK_NAME, get_available_stacks, get_stack_by_name
 from surek.exceptions import SurekError
 from surek.tui.screens.stack_info import StackInfoScreen
 from surek.utils.paths import get_system_dir
@@ -34,7 +34,6 @@ class ClickableDataTable(DataTable[str]):
         pass
 
     def on_click(self, event: Click) -> None:
-        """Handle click events."""
         if event.chain == 2:  # Double click
             self.post_message(self.DoubleClicked())
 
@@ -52,11 +51,9 @@ class StacksPane(Container):
     ]
 
     def compose(self) -> ComposeResult:
-        """Compose the stacks pane."""
         yield ClickableDataTable(id="stacks-table", zebra_stripes=True)
 
     def on_mount(self) -> None:
-        """Initialize the table when mounted."""
         table = self.query_one("#stacks-table", DataTable)
         table.cursor_type = "row"
         table.header_height = ROW_HEIGHT
@@ -69,19 +66,17 @@ class StacksPane(Container):
         self.refresh_data()
 
     def refresh_data(self) -> None:
-        """Refresh the stacks data."""
         table = self.query_one("#stacks-table", DataTable)
         table.clear()
 
-        # System status
         try:
-            system_status = get_stack_status_detailed("surek-system")
+            system_status = get_stack_status_detailed(SYSTEM_STACK_NAME)
             table.add_row(
                 _centered("System"),
                 _centered(system_status.status_text),
                 _centered(system_status.health_summary),
                 _centered(""),
-                key="surek-system",
+                key=SYSTEM_STACK_NAME,
                 height=ROW_HEIGHT,
             )
         except Exception:
@@ -90,11 +85,10 @@ class StacksPane(Container):
                 _centered("? Unknown"),
                 _centered("-"),
                 _centered(""),
-                key="surek-system",
+                key=SYSTEM_STACK_NAME,
                 height=ROW_HEIGHT,
             )
 
-        # User stacks
         try:
             stacks = get_available_stacks()
             for stack in stacks:
@@ -123,7 +117,6 @@ class StacksPane(Container):
             pass  # No stacks directory
 
     def _get_selected_stack(self) -> str | None:
-        """Get the name of the currently selected stack."""
         table: DataTable[str] = self.query_one("#stacks-table", DataTable)
         if table.cursor_row is not None:
             row_key = table.get_row_at(table.cursor_row)
@@ -134,7 +127,6 @@ class StacksPane(Container):
         return None
 
     def action_deploy(self) -> None:
-        """Deploy the selected stack."""
         stack_name = self._get_selected_stack()
         if not stack_name or stack_name == "System":
             self.app.notify("Select a user stack to deploy", severity="warning")
@@ -146,7 +138,6 @@ class StacksPane(Container):
         self.run_worker(self._deploy_stack(stack_name))
 
     async def _deploy_stack(self, stack_name: str) -> None:
-        """Deploy a stack asynchronously."""
         try:
             config = load_config()
             stack = get_stack_by_name(stack_name)
@@ -157,7 +148,6 @@ class StacksPane(Container):
             self.app.notify(f"Deploy failed: {e}", severity="error")
 
     def action_start(self) -> None:
-        """Start the selected stack."""
         stack_name = self._get_selected_stack()
         if not stack_name:
             return
@@ -166,7 +156,6 @@ class StacksPane(Container):
         self.run_worker(self._start_stack(stack_name))
 
     async def _start_stack(self, stack_name: str) -> None:
-        """Start a stack asynchronously."""
         try:
             if stack_name == "System":
                 config = load_config()
@@ -183,7 +172,6 @@ class StacksPane(Container):
             self.app.notify(f"Start failed: {e}", severity="error")
 
     def action_stop(self) -> None:
-        """Stop the selected stack."""
         stack_name = self._get_selected_stack()
         if not stack_name:
             return
@@ -192,7 +180,6 @@ class StacksPane(Container):
         self.run_worker(self._stop_stack(stack_name))
 
     async def _stop_stack(self, stack_name: str) -> None:
-        """Stop a stack asynchronously."""
         try:
             if stack_name == "System":
                 system_dir = get_system_dir()
@@ -211,15 +198,12 @@ class StacksPane(Container):
     def on_clickable_data_table_double_clicked(
         self, event: ClickableDataTable.DoubleClicked
     ) -> None:
-        """Handle double-click on table to open details."""
         self.action_info()
 
     def on_data_table_row_selected(self, event: DataTable.RowSelected) -> None:
-        """Handle Enter key on table row to open details."""
         self.action_info()
 
     def action_info(self) -> None:
-        """Show detailed info for the selected stack."""
         stack_name = self._get_selected_stack()
         if not stack_name:
             self.app.notify("Select a stack to view info", severity="warning")

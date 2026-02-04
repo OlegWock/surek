@@ -1,13 +1,13 @@
 """Backups screen for TUI."""
 
 from textual.app import ComposeResult
-from textual.binding import Binding
 from textual.containers import Container
 from textual.widgets import DataTable
 
-from surek.core.backup import format_bytes, list_backups, trigger_backup
+from surek.core.backup import list_backups
 from surek.core.config import load_config
 from surek.exceptions import SurekError
+from surek.utils.logging import format_bytes
 
 # Row height for table padding (1 = default, 3 = extra vertical space)
 ROW_HEIGHT = 3
@@ -22,16 +22,10 @@ def _centered(text: str) -> str:
 class BackupsPane(Container):
     """Pane showing available backups."""
 
-    BINDINGS = [
-        Binding("b", "run_backup", "Run Backup"),
-    ]
-
     def compose(self) -> ComposeResult:
-        """Compose the backups pane."""
         yield DataTable(id="backups-table", zebra_stripes=True)
 
     def on_mount(self) -> None:
-        """Initialize the table when mounted."""
         table = self.query_one("#backups-table", DataTable)
         table.cursor_type = "row"
         table.header_height = ROW_HEIGHT
@@ -44,7 +38,6 @@ class BackupsPane(Container):
         self.refresh_data()
 
     def refresh_data(self) -> None:
-        """Refresh the backups data."""
         table = self.query_one("#backups-table", DataTable)
         table.clear()
 
@@ -103,17 +96,3 @@ class BackupsPane(Container):
                 key="error",
                 height=ROW_HEIGHT,
             )
-
-    def action_run_backup(self) -> None:
-        """Trigger a manual backup."""
-        self.app.notify("Starting backup...", timeout=2)
-        self.run_worker(self._run_backup())
-
-    async def _run_backup(self) -> None:
-        """Run backup asynchronously."""
-        try:
-            trigger_backup()
-            self.app.notify("Backup completed", severity="information")
-            self.refresh_data()
-        except Exception as e:
-            self.app.notify(f"Backup failed: {e}", severity="error")

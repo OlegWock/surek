@@ -86,7 +86,9 @@ surek new
 
 Or you can manually create the folder `stacks/my-stack` and `surek.stack.yml` inside it.
 
-After configuring your stack, deploy it. This pulls sources (if stack source is GitHub), transforms the compose file, and starts containers.
+After configuring your stack, deploy it. This pulls sources (if stack source is GitHub), transforms the compose file, and starts containers. 
+
+Content of stack folder will be available to be used in your `docker-compose.yml`. You can use this to provide additional files that can be used by stack (e.g. service-specific configuration files). For stacks pulled from GitHub, content of stack folder will be recursively merged with repository content. You can use this to provide additional files or override existing files in the repository.
 
 ```bash
 surek deploy my-stack
@@ -232,6 +234,7 @@ When writing Docker Compose files for Surek:
 1. **Use named volumes**: Surek can reliably backup only named volumes. Bind mounts will still work, but won't be backed up.
 
 2. **Unique service names**: since all stacks share same network, each of services in your `docker-compose.yml` have to have unique name. For example, if you have two separate web apps both of which use Postgres, and you want to use separate Postgres instance for each, you have to give each of them unique name, they can't both be `postgres`. You can name them something like `postgres-foo` and `postgres-bar`.
+
 3. **No port exposure needed**: Caddy will route incoming traffic directly through shared network, so there is no need to expose ports from container (though doing that won't brake anything either).
 
 ## Examples

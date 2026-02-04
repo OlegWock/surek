@@ -29,7 +29,6 @@ def expand_variables(value: str, config: SurekConfig) -> str:
     """
     result = value
 
-    # Core variables
     replacements = {
         "<root>": config.root_domain,
         "<default_auth>": config.default_auth,
@@ -37,7 +36,6 @@ def expand_variables(value: str, config: SurekConfig) -> str:
         "<default_password>": config.default_password,
     }
 
-    # Backup variables (only if backup is configured)
     if config.backup:
         replacements.update(
             {
@@ -80,7 +78,6 @@ def expand_all_variables(value: str, config: SurekConfig) -> str:
     Returns:
         String with all variables expanded.
     """
-    # First expand surek variables, then env variables
     result = expand_variables(value, config)
     return expand_env_vars(result)
 

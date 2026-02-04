@@ -48,8 +48,10 @@ def schema_command() -> None:
     console.print("[green]Generated schemas:[/green]")
     console.print(f"  • {surek_path}")
     console.print(f"  • {stack_path}")
-    console.print("\nAdd to your YAML files for autocompletion:")
+    console.print("\nAdd this to your YAML files for autocompletion.")
+    console.print("To [bold]surek.yml[/bold]:")
     console.print(f"  # yaml-language-server: $schema=./{SUREK_CONFIG_SCHEMA}")
+    console.print("To [bold]stack.surek.yml[/bold]:")
     console.print(f"  # yaml-language-server: $schema=../../{STACK_CONFIG_SCHEMA}")
 
 
@@ -63,17 +65,38 @@ def init_command(
         return
 
     # Interactive prompts
+    console.print(
+        "\n[bold]Root domain[/bold]"
+        "Your stacks will be accessible at subdomains of this domain (e.g., app.example.com). "
+        "Make sure DNS for this domain points to this server."
+    )
     root_domain = Prompt.ask("Root domain", default="example.com")
+
+    console.print(
+        "\n[bold]Default credentials[/bold]"
+        "These credentials can be used for HTTP basic auth on your stacks. "
+        "Reference them in stack configs with [cyan]<default_auth>[/cyan] instead of hardcoding passwords."
+    )
     default_user = Prompt.ask("Default username", default="admin")
-    default_password = Prompt.ask("Default password", password=True)
+    default_password = None
+    while not default_password:
+        default_password = Prompt.ask("Default password", password=True)
 
-    if not default_password:
-        console.print("[red]Password cannot be empty[/red]")
-        raise typer.Exit(1) from None
+        if not default_password:
+            console.print("[red]Password cannot be empty[/red]")
 
+    console.print(
+        "\n[bold]S3 backup[/bold]"
+        "Surek can automatically backup your stack volumes to S3-compatible storage "
+        "(AWS S3, Backblaze B2, MinIO, etc). You can configure this later in surek.yml."
+    )
     configure_backup = Confirm.ask("Configure S3 backup?", default=False)
     backup_config: dict[str, str] | None = None
     if configure_backup:
+        console.print(
+            "\nBackups are encrypted before upload. Backup this password, "
+            "you'll need it to restore backups."
+        )
         backup_config = {
             "password": Prompt.ask("Backup encryption password", password=True),
             "s3_endpoint": Prompt.ask("S3 endpoint"),
@@ -82,6 +105,11 @@ def init_command(
             "s3_secret_key": Prompt.ask("S3 secret key", password=True),
         }
 
+    console.print(
+        "\n[bold]GitHub access[/bold]"
+        "\nIf you want to deploy stacks from private GitHub repositories,"
+        "\nyou'll need a Personal Access Token with [cyan]repo[/cyan] scope."
+    )
     configure_github = Confirm.ask("Configure GitHub access?", default=False)
     github_config: dict[str, str] | None = None
     if configure_github:
@@ -110,7 +138,7 @@ def init_command(
 
     # Write config with schema reference
     with open(config_path, "w") as f:
-        f.write(f"# yaml-language-server: $schema=./{SUREK_CONFIG_SCHEMA}\n")
+        f.write(f"# yaml-language-server: $schema=./{SUREK_CONFIG_SCHEMA}\n\n")
         yaml.dump(config, f, default_flow_style=False, sort_keys=False)
 
     Path("stacks").mkdir(exist_ok=True)
@@ -122,7 +150,7 @@ def init_command(
 
 def new_command() -> None:
     """Create a new stack interactively."""
-    # Load root domain from config if available
+
     root_domain = "example.com"
     config_path = Path("surek.yml")
     if config_path.exists():
@@ -147,7 +175,6 @@ def new_command() -> None:
 
     compose_path = Prompt.ask("Compose file path", default="./docker-compose.yml")
 
-    # Public endpoints
     public: list[dict[str, str | None]] = []
     endpoint_num = 1
     while True:
@@ -159,8 +186,10 @@ def new_command() -> None:
         if not Confirm.ask(prompt, default=(endpoint_num == 1)):
             break
 
-        console.print(f"[dim]Tip: Use <root> for domain, e.g., 'app' becomes 'app.{root_domain}'[/dim]")
-        subdomain = Prompt.ask("Subdomain (without .<root>)")
+        console.print(
+            f"[dim]You app will be available on selected subdomain. E.g., 'app' becomes 'app.{root_domain}'[/dim]"
+        )
+        subdomain = Prompt.ask("Subdomain")
         domain = f"{subdomain}.<root>" if subdomain else "app.<root>"
         console.print(f"[dim]  → Will be accessible at: https://{subdomain}.{root_domain}[/dim]")
 
@@ -172,7 +201,6 @@ def new_command() -> None:
         public.append({"domain": domain, "target": target, "auth": auth})
         endpoint_num += 1
 
-    # Create stack directory and config
     stack_dir = Path("stacks") / name
     stack_dir.mkdir(parents=True, exist_ok=True)
 
@@ -187,13 +215,11 @@ def new_command() -> None:
             {k: v for k, v in endpoint.items() if v is not None} for endpoint in public
         ]
 
-    # Write stack config with schema reference
     config_path = stack_dir / "surek.stack.yml"
     with open(config_path, "w") as f:
-        f.write(f"# yaml-language-server: $schema=../../{STACK_CONFIG_SCHEMA}\n")
+        f.write(f"# yaml-language-server: $schema=../../{STACK_CONFIG_SCHEMA}\n\n")
         yaml.dump(config, f, default_flow_style=False, sort_keys=False)
 
-    # Create empty compose file if local source
     if source_type == "local":
         compose_file = stack_dir / "docker-compose.yml"
         if not compose_file.exists():

@@ -13,7 +13,6 @@ from rich.table import Table
 from surek.core.backup import (
     decrypt_and_extract_backup,
     download_backup,
-    format_bytes,
     list_backups,
     trigger_backup,
 )
@@ -22,6 +21,7 @@ from surek.core.deploy import deploy_system_stack, start_stack, stop_stack
 from surek.core.docker import ensure_surek_network
 from surek.core.stacks import get_available_stacks, get_stack_by_name
 from surek.exceptions import BackupError, SurekError
+from surek.utils.logging import format_bytes
 from surek.utils.paths import get_data_dir, get_system_dir
 
 console = Console()
@@ -49,10 +49,6 @@ def list_backups_cmd(
 
         backups = list_backups(config.backup)
 
-        if not backups:
-            console.print("No backups found")
-            return
-
         if json_output:
             import json
 
@@ -67,6 +63,9 @@ def list_backups_cmd(
             ]
             console.print(json.dumps(data, indent=2))
         else:
+            if not backups:
+                console.print("No backups found")
+                return
             table = Table(title="Backups")
             table.add_column("Backup", style="cyan")
             table.add_column("Type")
@@ -75,15 +74,17 @@ def list_backups_cmd(
 
             for backup in backups:
                 # Color by type
-                type_text = backup.backup_type
-                if type_text == "daily":
-                    type_text = f"[blue]{type_text}[/blue]"
-                elif type_text == "weekly":
-                    type_text = f"[green]{type_text}[/green]"
-                elif type_text == "monthly":
-                    type_text = f"[magenta]{type_text}[/magenta]"
-                elif type_text == "manual":
-                    type_text = f"[yellow]{type_text}[/yellow]"
+                backup_type = backup.backup_type
+                if backup_type == "daily":
+                    type_text = f"[blue]{backup_type}[/blue]"
+                elif backup_type == "weekly":
+                    type_text = f"[green]{backup_type}[/green]"
+                elif backup_type == "monthly":
+                    type_text = f"[magenta]{backup_type}[/magenta]"
+                elif backup_type == "manual":
+                    type_text = f"[yellow]{backup_type}[/yellow]"
+                else:
+                    type_text = backup_type
 
                 table.add_row(
                     backup.name,
@@ -118,13 +119,9 @@ def run_backup() -> None:
 
 @app.command(name="restore")
 def restore_backup(
-    backup_id: str | None = typer.Option(
-        None, "--id", help="Backup filename to restore"
-    ),
+    backup_id: str | None = typer.Option(None, "--id", help="Backup filename to restore"),
     stack: str | None = typer.Option(None, "--stack", help="Stack to restore"),
-    volume: str | None = typer.Option(
-        None, "--volume", help="Specific volume to restore"
-    ),
+    volume: str | None = typer.Option(None, "--volume", help="Specific volume to restore"),
 ) -> None:
     """Restore volumes from a backup."""
     try:
@@ -162,12 +159,10 @@ def restore_backup(
 
         console.print(f"\nRestoring from backup: {backup_id}", highlight=False)
 
-        # Confirm
         if not Confirm.ask("This will stop affected stacks. Continue?", default=False):
             console.print("[yellow]Aborted[/yellow]")
             raise typer.Exit(0)
 
-        # Stop affected stacks (only track stacks that are actually running)
         stopped_stacks: list[str] = []
 
         def is_stack_running(name: str) -> bool:
@@ -189,7 +184,7 @@ def restore_backup(
                 stopped_stacks.append(stack)
         else:
             console.print("Stopping all stacks...")
-            # Stop system stack first
+
             try:
                 system_dir = get_system_dir()
                 system_config = load_stack_config(system_dir / "surek.stack.yml")
@@ -197,18 +192,16 @@ def restore_backup(
                     stop_stack(system_config, silent=True)
                     stopped_stacks.append("system")
             except SurekError:
-                pass  # System stack not configured
+                pass
 
-            # Stop user stacks
             try:
                 for s in get_available_stacks():
                     if s.valid and s.config and is_stack_running(s.config.name):
                         stop_stack(s.config, silent=True)
                         stopped_stacks.append(s.config.name)
             except SurekError:
-                pass  # No stacks directory
+                pass
 
-        # Download backup
         with tempfile.TemporaryDirectory() as temp_dir:
             temp_path = Path(temp_dir)
             backup_path = temp_path / backup_id
@@ -216,7 +209,6 @@ def restore_backup(
             console.print(f"Downloading backup {backup_id}...", highlight=False)
             download_backup(config.backup, backup_id, backup_path)
 
-            # Decrypt and extract
             console.print("Decrypting and extracting...")
             extract_dir = temp_path / "extracted"
             decrypt_and_extract_backup(backup_path, config.backup.password, extract_dir)
@@ -238,13 +230,11 @@ def restore_backup(
                             continue
 
                         target_volume_dir = target_stack_dir / volume_dir.name
-                        console.print(
-                            f"  Restoring {stack_dir.name}/{volume_dir.name}..."
-                        )
+                        console.print(f"  Restoring {stack_dir.name}/{volume_dir.name}...")
 
                         if target_volume_dir.exists():
                             shutil.rmtree(target_volume_dir)
-                        shutil.copytree(volume_dir, target_volume_dir)
+                        shutil.move(volume_dir, target_volume_dir)
 
         # Restart stopped stacks
         console.print("\nRestarting stacks...")

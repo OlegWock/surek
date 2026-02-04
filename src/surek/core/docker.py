@@ -97,7 +97,9 @@ def _get_container_stats(container: Any) -> tuple[str, float, int]:
             stats: dict[str, Any] = container.stats(stream=False)  # type: ignore[assignment]
             cpu_percent = _calculate_cpu_percent(stats)
             memory_stats: dict[str, Any] = stats.get("memory_stats", {})
-            memory_bytes = int(memory_stats.get("usage", 0) or 0) if isinstance(memory_stats, dict) else 0
+            memory_bytes = (
+                int(memory_stats.get("usage", 0) or 0) if isinstance(memory_stats, dict) else 0
+            )
             return (container.id, cpu_percent, memory_bytes)
     except Exception:
         pass
@@ -174,16 +176,13 @@ def get_stack_status_detailed(stack_name: str, include_stats: bool = False) -> S
     health_details: list[str] = []
 
     for container in containers:
-        # Get service name from labels
         service_name = container.labels.get("com.docker.compose.service", container.name)
 
-        # Get health status
         health: str | None = None
         state = container.attrs.get("State", {})
         if "Health" in state:
             health = state["Health"].get("Status")
 
-        # Get resource usage from pre-fetched stats
         container_id = container.id or ""
         cpu_percent, memory_bytes = stats_by_id.get(container_id, (0.0, 0))
 
@@ -200,11 +199,9 @@ def get_stack_status_detailed(stack_name: str, include_stats: bool = False) -> S
         total_cpu += cpu_percent
         total_memory += memory_bytes
 
-        # Build health detail string
         if health:
             health_details.append(f"{service_name}: {health}")
 
-    # Calculate status text
     running = sum(1 for s in services if s.status == "running")
     total = len(services)
 
@@ -215,7 +212,6 @@ def get_stack_status_detailed(stack_name: str, include_stats: bool = False) -> S
     else:
         status_text = f"⚠ Partial ({running}/{total})"
 
-    # Health summary
     unhealthy = sum(1 for s in services if s.health == "unhealthy")
     starting = sum(1 for s in services if s.health == "starting")
     healthy = sum(1 for s in services if s.health == "healthy")
@@ -324,19 +320,3 @@ def run_docker_compose(
     except subprocess.CalledProcessError as e:
         error_msg = e.stderr if e.stderr else f"Command exited with code {e.returncode}"
         raise DockerError(f"Docker Compose command failed: {error_msg}") from e
-
-
-def format_bytes(num_bytes: int) -> str:
-    """Format bytes as human-readable string.
-
-    Args:
-        num_bytes: Number of bytes.
-
-    Returns:
-        Human-readable string (e.g., "1.5 GB").
-    """
-    for unit in ["B", "KB", "MB", "GB", "TB"]:
-        if abs(num_bytes) < 1024.0:
-            return f"{num_bytes:.1f} {unit}"
-        num_bytes = int(num_bytes / 1024.0)
-    return f"{num_bytes:.1f} PB"

@@ -8,8 +8,11 @@ from surek.exceptions import SurekError
 from surek.models.stack import StackConfig
 from surek.utils.paths import get_stacks_dir
 
+# System stack name (Docker Compose project name)
+SYSTEM_STACK_NAME = "surek-system"
+
 # Reserved stack names that users cannot use
-RESERVED_STACK_NAMES = {"system", "surek-system"}
+RESERVED_STACK_NAMES = {"system", SYSTEM_STACK_NAME}
 
 
 @dataclass
@@ -45,10 +48,9 @@ def get_available_stacks() -> list[StackInfo]:
 
     results: list[StackInfo] = []
 
-    for config_path in stacks_dir.glob("**/surek.stack.yml"):
+    for config_path in stacks_dir.glob("*/surek.stack.yml"):
         try:
             config = load_stack_config(config_path)
-            # Check for reserved names
             if config.name.lower() in RESERVED_STACK_NAMES:
                 results.append(
                     StackInfo(

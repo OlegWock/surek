@@ -65,7 +65,6 @@ class TopBar(Widget):
         self._show_back = show_back
 
     def compose(self) -> ComposeResult:
-        """Compose the top bar layout."""
         if self._show_back:
             yield Button("← Back", classes="top-bar-button")
             yield Static(self._title, classes="top-bar-title")
@@ -74,5 +73,4 @@ class TopBar(Widget):
             yield Static(self._title, classes="top-bar-title")
 
     def on_button_pressed(self, event: Button.Pressed) -> None:
-        """Handle back button press."""
         self.post_message(self.BackPressed())

@@ -138,10 +138,6 @@ github:
 system_services:
   portainer: true   # Enable/disable Portainer
   netdata: true     # Enable/disable Netdata
-
-# Optional: Notification settings (reserved for future use)
-notifications:
-  webhook_url: https://hooks.example.com/xxx
 ```
 
 ### Stack Configuration (`surek.stack.yml`)

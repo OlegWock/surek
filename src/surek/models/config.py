@@ -1,6 +1,5 @@
 """Pydantic models for main Surek configuration (surek.yml)."""
 
-
 from pydantic import BaseModel, Field, field_validator, model_validator
 
 
@@ -20,19 +19,6 @@ class GitHubConfig(BaseModel):
     pat: str
 
 
-class NotificationConfig(BaseModel):
-    """Notification settings for backup failures.
-
-    NOTE: In v2.0, notifications are tracked but not sent. The configuration
-    is accepted for forward compatibility. Actual notification delivery
-    (webhook, email, Telegram) will be implemented in a future release.
-    """
-
-    webhook_url: str | None = None
-    email: str | None = None
-    telegram_chat_id: str | None = None  # Reserved for future use
-
-
 class SystemServicesConfig(BaseModel):
     """Control which system services are enabled."""
 
@@ -47,7 +33,6 @@ class SurekConfig(BaseModel):
     default_auth: str = Field(..., description="Format: 'user:password'")
     backup: BackupConfig | None = None
     github: GitHubConfig | None = None
-    notifications: NotificationConfig | None = None
     system_services: SystemServicesConfig = Field(default_factory=SystemServicesConfig)
 
     # Parsed from default_auth (set by validator)
@@ -61,9 +46,7 @@ class SurekConfig(BaseModel):
         if ":" not in v:
             raise ValueError("default_auth must be in 'user:password' format (missing ':')")
         if v.count(":") != 1:
-            raise ValueError(
-                "default_auth must be in 'user:password' format (multiple ':' found)"
-            )
+            raise ValueError("default_auth must be in 'user:password' format (multiple ':' found)")
         user, password = v.split(":")
         if not user:
             raise ValueError("default_auth username cannot be empty")

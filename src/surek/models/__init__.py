@@ -3,7 +3,6 @@
 from surek.models.config import (
     BackupConfig,
     GitHubConfig,
-    NotificationConfig,
     SurekConfig,
     SystemServicesConfig,
 )
@@ -23,7 +22,6 @@ __all__ = [
     "GitHubConfig",
     "GitHubSource",
     "LocalSource",
-    "NotificationConfig",
     "PublicEndpoint",
     "StackConfig",
     "SurekConfig",

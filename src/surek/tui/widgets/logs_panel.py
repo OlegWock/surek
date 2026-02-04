@@ -84,7 +84,6 @@ class LogsPanel(Widget):
         self._current_service: str | None = None  # None means "All"
 
     def compose(self) -> ComposeResult:
-        """Compose the logs panel."""
         yield Input(placeholder="Filter logs...", id="logs-filter")
 
         with TabbedContent():
@@ -95,11 +94,9 @@ class LogsPanel(Widget):
                     yield RichLog(id=f"log-{service}", highlight=True, wrap=False)
 
     def on_mount(self) -> None:
-        """Initialize logs on mount."""
         self._load_logs(_USE_CURRENT_TAB)
 
     def _get_compose_paths(self) -> tuple[Path, Path] | None:
-        """Get project dir and compose file paths if they exist."""
         project_dir = get_stack_project_dir(self._stack_name)
         compose_file = project_dir / "docker-compose.surek.yml"
         if not compose_file.exists():
@@ -107,13 +104,11 @@ class LogsPanel(Widget):
         return project_dir, compose_file
 
     def _get_current_log_widget(self) -> RichLog:
-        """Get the RichLog widget for the current tab."""
         service = self._get_current_service()
         log_id = "log-all" if service is None else f"log-{service}"
         return self.query_one(f"#{log_id}", RichLog)
 
     def _get_current_service(self) -> str | None:
-        """Get the service name for the current tab, or None for All."""
         tabbed = self.query_one(TabbedContent)
         active_tab = tabbed.active
         if active_tab == "logs-tab-all":
@@ -139,12 +134,9 @@ class LogsPanel(Widget):
         return ""
 
     def _load_logs(self, service: str | None | _UseCurrentTab = _USE_CURRENT_TAB) -> None:
-        """Load logs for a specific service or all services."""
         if isinstance(service, _UseCurrentTab):
-            # Load for current tab
             service = self._get_current_service()
 
-        # Get the correct log widget
         log_id = "log-all" if service is None else f"log-{service}"
         try:
             log_widget = self.query_one(f"#{log_id}", RichLog)
@@ -191,14 +183,11 @@ class LogsPanel(Widget):
             log_widget.write(f"Error fetching logs: {e}")
 
     def refresh_logs(self) -> None:
-        """Refresh logs for the current tab."""
         self._load_logs(_USE_CURRENT_TAB)
 
     def on_tabbed_content_tab_activated(self, event: TabbedContent.TabActivated) -> None:
-        """Handle tab switch - load logs for the new tab."""
         service = self._get_current_service()
 
-        # Stop following if active
         if self._follow_worker:
             self._follow_worker.cancel()
             self._follow_worker = None
@@ -207,14 +196,12 @@ class LogsPanel(Widget):
         self._load_logs(service)
 
     def on_input_changed(self, event: Input.Changed) -> None:
-        """Handle filter input changes."""
         if event.input.id == "logs-filter":
             self._log_filter = event.value
             if not self._follow_logs:
                 self._load_logs()
 
     def toggle_follow(self) -> bool:
-        """Toggle log following mode. Returns new follow state."""
         self._follow_logs = not self._follow_logs
 
         if self._follow_logs:
@@ -228,19 +215,16 @@ class LogsPanel(Widget):
 
     @property
     def is_following(self) -> bool:
-        """Return whether logs are being followed."""
         return self._follow_logs
 
     def toggle_wrap(self) -> None:
-        """Toggle log line wrapping."""
         self._wrap_logs = not self._wrap_logs
         for log_widget in self.query(RichLog):
             log_widget.wrap = self._wrap_logs
-        # Reload logs to apply wrapping
+
         self._load_logs(_USE_CURRENT_TAB)
 
     async def _follow_logs_stream(self) -> None:
-        """Stream logs in follow mode."""
         paths = self._get_compose_paths()
         if not paths:
             return
@@ -250,10 +234,17 @@ class LogsPanel(Widget):
         log_widget = self._get_current_log_widget()
 
         cmd = [
-            "docker", "compose",
-            "--file", str(compose_file),
-            "--project-directory", str(project_dir),
-            "logs", "--follow", "--tail", "0", "--no-color",
+            "docker",
+            "compose",
+            "--file",
+            str(compose_file),
+            "--project-directory",
+            str(project_dir),
+            "logs",
+            "--follow",
+            "--tail",
+            "0",
+            "--no-color",
         ]
         if service:
             cmd.append(service)
@@ -285,16 +276,13 @@ class LogsPanel(Widget):
             log_widget.write(f"Log streaming error: {e}")
 
     def stop_following(self) -> None:
-        """Stop following logs (call when leaving screen)."""
         if self._follow_worker:
             self._follow_worker.cancel()
             self._follow_worker = None
 
     async def update_services(self, services: list[str]) -> None:
-        """Update the list of services by adding new tabs."""
         tabbed = self.query_one(TabbedContent)
 
-        # Add tabs for new services
         for service in services:
             if service not in self._services:
                 tab_pane = TabPane(service, id=f"logs-tab-{service}")

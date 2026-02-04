@@ -1,0 +1,169 @@
+{
+  "$defs": {
+    "BackupExcludeConfig": {
+      "description": "Backup exclusion settings.",
+      "properties": {
+        "exclude_volumes": {
+          "items": {
+            "type": "string"
+          },
+          "title": "Exclude Volumes",
+          "type": "array"
+        }
+      },
+      "title": "BackupExcludeConfig",
+      "type": "object"
+    },
+    "EnvConfig": {
+      "description": "Environment variable configuration.",
+      "properties": {
+        "shared": {
+          "items": {
+            "type": "string"
+          },
+          "title": "Shared",
+          "type": "array"
+        },
+        "by_container": {
+          "additionalProperties": {
+            "items": {
+              "type": "string"
+            },
+            "type": "array"
+          },
+          "title": "By Container",
+          "type": "object"
+        }
+      },
+      "title": "EnvConfig",
+      "type": "object"
+    },
+    "GitHubSource": {
+      "description": "GitHub source configuration - download from GitHub repository.",
+      "properties": {
+        "type": {
+          "const": "github",
+          "title": "Type",
+          "type": "string"
+        },
+        "slug": {
+          "description": "Format: 'owner/repo' or 'owner/repo#ref'",
+          "title": "Slug",
+          "type": "string"
+        }
+      },
+      "required": [
+        "type",
+        "slug"
+      ],
+      "title": "GitHubSource",
+      "type": "object"
+    },
+    "LocalSource": {
+      "description": "Local source configuration - files already present in stack directory.",
+      "properties": {
+        "type": {
+          "const": "local",
+          "title": "Type",
+          "type": "string"
+        }
+      },
+      "required": [
+        "type"
+      ],
+      "title": "LocalSource",
+      "type": "object"
+    },
+    "PublicEndpoint": {
+      "description": "Public endpoint configuration for reverse proxy.",
+      "properties": {
+        "domain": {
+          "title": "Domain",
+          "type": "string"
+        },
+        "target": {
+          "description": "Format: 'service:port' or 'service' (default port 80)",
+          "title": "Target",
+          "type": "string"
+        },
+        "auth": {
+          "anyOf": [
+            {
+              "type": "string"
+            },
+            {
+              "type": "null"
+            }
+          ],
+          "default": null,
+          "description": "Format: 'user:password' or '<default_auth>'",
+          "title": "Auth"
+        }
+      },
+      "required": [
+        "domain",
+        "target"
+      ],
+      "title": "PublicEndpoint",
+      "type": "object"
+    }
+  },
+  "additionalProperties": false,
+  "description": "Stack configuration from surek.stack.yml.",
+  "properties": {
+    "name": {
+      "title": "Name",
+      "type": "string"
+    },
+    "source": {
+      "discriminator": {
+        "mapping": {
+          "github": "#/$defs/GitHubSource",
+          "local": "#/$defs/LocalSource"
+        },
+        "propertyName": "type"
+      },
+      "oneOf": [
+        {
+          "$ref": "#/$defs/LocalSource"
+        },
+        {
+          "$ref": "#/$defs/GitHubSource"
+        }
+      ],
+      "title": "Source"
+    },
+    "compose_file_path": {
+      "default": "./docker-compose.yml",
+      "title": "Compose File Path",
+      "type": "string"
+    },
+    "public": {
+      "items": {
+        "$ref": "#/$defs/PublicEndpoint"
+      },
+      "title": "Public",
+      "type": "array"
+    },
+    "env": {
+      "anyOf": [
+        {
+          "$ref": "#/$defs/EnvConfig"
+        },
+        {
+          "type": "null"
+        }
+      ],
+      "default": null
+    },
+    "backup": {
+      "$ref": "#/$defs/BackupExcludeConfig"
+    }
+  },
+  "required": [
+    "name",
+    "source"
+  ],
+  "title": "StackConfig",
+  "type": "object"
+}

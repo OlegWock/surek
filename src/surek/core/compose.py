@@ -167,9 +167,7 @@ def transform_compose_file(
             container_env = config.env.by_container.get(service_name, [])
             shared_env = config.env.shared
 
-            expanded_env = [
-                expand_variables(e, surek_config) for e in shared_env + container_env
-            ]
+            expanded_env = [expand_variables(e, surek_config) for e in shared_env + container_env]
 
             if expanded_env:
                 if "environment" not in service:

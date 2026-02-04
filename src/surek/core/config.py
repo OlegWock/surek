@@ -29,8 +29,7 @@ def load_config(config_path: Path | None = None) -> SurekConfig:
 
     if config_path is None:
         raise SurekConfigError(
-            "Config file not found. "
-            "Make sure you have surek.yml in current working directory"
+            "Config file not found. Make sure you have surek.yml in current working directory"
         )
 
     try:

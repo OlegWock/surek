@@ -72,9 +72,7 @@ class PublicEndpoint(BaseModel):
 
     domain: str
     target: str = Field(..., description="Format: 'service:port' or 'service' (default port 80)")
-    auth: str | None = Field(
-        None, description="Format: 'user:password' or '<default_auth>'"
-    )
+    auth: str | None = Field(None, description="Format: 'user:password' or '<default_auth>'")
 
     @property
     def service_name(self) -> str:

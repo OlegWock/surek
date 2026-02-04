@@ -12,11 +12,12 @@ from textual.widgets import DataTable, Footer, Static
 from textual.worker import get_current_worker
 
 from surek.core.config import load_config
-from surek.core.docker import format_bytes, get_stack_status_detailed
+from surek.core.docker import get_stack_status_detailed
 from surek.core.variables import expand_variables
 from surek.exceptions import SurekError
 from surek.models.stack import StackConfig
 from surek.tui.widgets import LogsPanel, TopBar
+from surek.utils.logging import format_bytes
 from surek.utils.paths import get_stack_volumes_dir
 
 
@@ -88,23 +89,18 @@ class StackInfoScreen(Screen[None]):
         self._stats_timer: Timer | None = None
 
     def compose(self) -> ComposeResult:
-        """Compose the screen layout."""
         yield TopBar(f"Stack: {self.stack_config.name}", show_back=True)
 
         with ScrollableContainer(id="info-container"):
-            # Stack info section
             yield Static("Stack Information", classes="section-title")
             yield Static("Loading...", id="stack-info", classes="info-row")
 
-            # Endpoints section
             yield Static("Endpoints", classes="section-title")
             yield Static(id="endpoints-info", classes="info-row")
 
-            # Services section
             yield Static("Services", classes="section-title")
             yield DataTable(id="services-table", zebra_stripes=True)
 
-            # Volumes section
             yield Static("Volumes", classes="section-title")
             with Vertical(id="volumes-container"):
                 yield Static(id="volumes-info")
@@ -116,13 +112,10 @@ class StackInfoScreen(Screen[None]):
         yield Footer()
 
     def on_top_bar_back_pressed(self, event: TopBar.BackPressed) -> None:
-        """Handle back button press."""
         self.action_pop_screen()
 
     def on_mount(self) -> None:
-        """Initialize the screen when mounted."""
         self._setup_services_table()
-        # Load basic info immediately, stats in background
         self._refresh_stack_info_basic()
         self._refresh_endpoints()
         self._refresh_volumes()
@@ -132,18 +125,15 @@ class StackInfoScreen(Screen[None]):
         self._stats_timer = self.set_interval(2, self._refresh_stats)
 
     def _refresh_stats(self) -> None:
-        """Refresh stats in background (called by timer)."""
         self.run_worker(self._load_stats_async(), exclusive=True)
 
     def _setup_services_table(self) -> None:
-        """Set up the services data table."""
         table = self.query_one("#services-table", DataTable)
         table.cursor_type = "row"
         table.add_columns("Service", "Status", "Health", "CPU", "Memory")
         table.add_row("Loading...", "-", "-", "-", "-", key="loading")
 
     def _refresh_stack_info_basic(self) -> None:
-        """Refresh the stack info section without stats."""
         config = self.stack_config
         status = get_stack_status_detailed(config.name, include_stats=False)
 
@@ -157,7 +147,6 @@ class StackInfoScreen(Screen[None]):
         self.query_one("#stack-info", Static).update(info_text)
 
     def _refresh_endpoints(self) -> None:
-        """Refresh the endpoints section."""
         config = self.stack_config
 
         if not config.public:
@@ -166,7 +155,6 @@ class StackInfoScreen(Screen[None]):
 
         try:
             surek_config = load_config()
-            # Build Rich Text with clickable links
             text = Text()
             for i, ep in enumerate(config.public):
                 url = f"https://{expand_variables(ep.domain, surek_config)}"
@@ -185,7 +173,6 @@ class StackInfoScreen(Screen[None]):
         self.query_one("#endpoints-info", Static).update(text)
 
     async def _load_stats_async(self) -> None:
-        """Load stats in background."""
         worker = get_current_worker()
 
         def get_stats() -> tuple[str, list[tuple[str, str, str, str, str]], list[str]]:
@@ -215,23 +202,23 @@ class StackInfoScreen(Screen[None]):
                 elif service.health == "unhealthy":
                     health_text = f"[red]{health_text}[/red]"
 
-                rows.append((
-                    service.name,
-                    status_text,
-                    health_text,
-                    f"{service.cpu_percent:.1f}%",
-                    format_bytes(service.memory_bytes),
-                ))
+                rows.append(
+                    (
+                        service.name,
+                        status_text,
+                        health_text,
+                        f"{service.cpu_percent:.1f}%",
+                        format_bytes(service.memory_bytes),
+                    )
+                )
 
             return info_text, rows, service_names
 
-        # Run blocking code in thread
         info_text, rows, service_names = await asyncio.to_thread(get_stats)
 
         if worker.is_cancelled:
             return
 
-        # Update UI
         self.query_one("#stack-info", Static).update(info_text)
 
         table = self.query_one("#services-table", DataTable)
@@ -242,12 +229,10 @@ class StackInfoScreen(Screen[None]):
         else:
             table.add_row("No services found", "-", "-", "-", "-", key="empty")
 
-        # Update logs panel with service tabs
         if service_names:
             await self.query_one("#logs-panel", LogsPanel).update_services(service_names)
 
     def _refresh_volumes(self) -> None:
-        """Refresh the volumes section."""
         volumes_dir = get_stack_volumes_dir(self.stack_config.name)
 
         if volumes_dir.exists():
@@ -263,7 +248,6 @@ class StackInfoScreen(Screen[None]):
         self.query_one("#volumes-info", Static).update(text)
 
     def action_refresh(self) -> None:
-        """Refresh all data."""
         self._refresh_stack_info_basic()
         self._refresh_endpoints()
         self._refresh_volumes()
@@ -272,7 +256,6 @@ class StackInfoScreen(Screen[None]):
         self.notify("Data refreshed")
 
     def action_toggle_logs_fullscreen(self) -> None:
-        """Toggle logs fullscreen mode."""
         self._logs_fullscreen = not self._logs_fullscreen
 
         # Hide/show info container in fullscreen mode (keep logs title visible)
@@ -280,7 +263,6 @@ class StackInfoScreen(Screen[None]):
         info_container.display = not self._logs_fullscreen
 
     def action_toggle_follow(self) -> None:
-        """Toggle log following mode."""
         is_following = self.query_one("#logs-panel", LogsPanel).toggle_follow()
         title = self.query_one("#logs-section-title", Static)
         if is_following:
@@ -289,11 +271,9 @@ class StackInfoScreen(Screen[None]):
             title.update("Logs")
 
     def action_toggle_wrap(self) -> None:
-        """Toggle log line wrapping."""
         self.query_one("#logs-panel", LogsPanel).toggle_wrap()
 
     def action_pop_screen(self) -> None:
-        """Go back to the previous screen."""
         if self._stats_timer:
             self._stats_timer.stop()
         self.query_one("#logs-panel", LogsPanel).stop_following()

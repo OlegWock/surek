@@ -8,9 +8,6 @@ Surek is a Docker Compose orchestration tool for self-hosted services. It manage
 # Install dependencies
 uv sync
 
-# Run tests
-uv run pytest
-
 # Type checking
 uv run mypy src/surek
 
@@ -68,7 +65,7 @@ The "system" stack is reserved for Surek's infrastructure:
 - Netdata (server monitoring)
 - Backup container (scheduled S3 backups)
 
-Defined in `src/surek/resources/system/`. Cannot be reset, only stopped.
+Defined in `src/surek/resources/system/`.
 
 ## Code Conventions
 

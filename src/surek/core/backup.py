@@ -1,18 +1,19 @@
 """Backup operations and S3 integration."""
 
-import json
-import subprocess
 from dataclasses import dataclass
-from datetime import UTC, datetime
+from datetime import datetime
 from pathlib import Path
+from typing import Literal
 
 import boto3
 from botocore.exceptions import BotoCoreError, ClientError
 
+from surek.core.stacks import SYSTEM_STACK_NAME
 from surek.exceptions import BackupError
 from surek.models.config import BackupConfig
-from surek.utils.logging import console, print_error
-from surek.utils.paths import get_data_dir
+from surek.utils.logging import console, print_dim, run_command
+
+BackupType = Literal["daily", "weekly", "monthly", "manual", "unknown"]
 
 
 @dataclass
@@ -20,19 +21,9 @@ class BackupInfo:
     """Information about a backup file in S3."""
 
     name: str
-    backup_type: str  # "daily", "weekly", "monthly", "unknown"
+    backup_type: BackupType
     size: int
     created: datetime
-
-
-@dataclass
-class BackupFailure:
-    """Record of a backup failure."""
-
-    timestamp: str
-    backup_type: str
-    error: str
-    notified: bool = False
 
 
 def get_s3_client(config: BackupConfig) -> boto3.client:  # type: ignore[valid-type]
@@ -73,6 +64,7 @@ def list_backups(config: BackupConfig) -> list[BackupInfo]:
             name = obj["Key"]
 
             # Determine backup type from filename
+            backup_type: BackupType
             if name.startswith("daily-"):
                 backup_type = "daily"
             elif name.startswith("weekly-"):
@@ -131,7 +123,12 @@ def trigger_backup() -> None:
 
         # Find the backup container
         containers = client.containers.list(
-            filters={"label": "com.docker.compose.service=backup"}
+            filters={
+                "label": [
+                    f"com.docker.compose.project={SYSTEM_STACK_NAME}",
+                    "com.docker.compose.service=backup",
+                ]
+            }
         )
 
         if not containers:
@@ -139,8 +136,6 @@ def trigger_backup() -> None:
 
         container = containers[0]
 
-        # Execute backup command with manual config (long retention, never auto-triggers)
-        # Source the config file first, then run backup (required for multi-schedule setups)
         console.print("Triggering manual backup...")
         exit_code, output = container.exec_run(
             [
@@ -153,13 +148,11 @@ def trigger_backup() -> None:
 
         if exit_code != 0:
             error_msg = output.decode() if output else "Unknown error"
-            record_backup_failure("manual", error_msg)
             raise BackupError(f"Backup failed: {error_msg}")
 
         console.print("[green]Backup completed successfully[/green]")
 
     except DockerException as e:
-        record_backup_failure("manual", str(e))
         raise BackupError(f"Docker error: {e}") from e
 
 
@@ -178,105 +171,34 @@ def decrypt_and_extract_backup(
     Raises:
         BackupError: If decryption or extraction fails.
     """
-    try:
-        # Decrypt with GPG
-        decrypted_path = backup_path.with_suffix("")
-        subprocess.run(
-            [
-                "gpg",
-                "--batch",
-                "--yes",
-                "--passphrase",
-                password,
-                "--output",
-                str(decrypted_path),
-                "--decrypt",
-                str(backup_path),
-            ],
-            check=True,
-            capture_output=True,
-        )
+    decrypted_path = backup_path.with_suffix("")
+    gpg_cmd = [
+        "gpg",
+        "--batch",
+        "--yes",
+        "--passphrase",
+        password,
+        "--output",
+        str(decrypted_path),
+        "--decrypt",
+        str(backup_path),
+    ]
 
-        # Extract tar.gz
-        target_dir.mkdir(parents=True, exist_ok=True)
-        subprocess.run(
-            ["tar", "-xzf", str(decrypted_path), "-C", str(target_dir)],
-            check=True,
-            capture_output=True,
-        )
-
-        # Cleanup decrypted file
-        decrypted_path.unlink()
-
-    except subprocess.CalledProcessError as e:
-        error_msg = e.stderr.decode() if e.stderr else str(e)
-        raise BackupError(f"Failed to decrypt/extract backup: {error_msg}") from e
-
-
-# Failure tracking
-
-
-def get_failure_log_path() -> Path:
-    """Get path to backup failures log file."""
-    return get_data_dir() / "backup_failures.json"
-
-
-def load_failures() -> list[BackupFailure]:
-    """Load backup failure history."""
-    path = get_failure_log_path()
-    if not path.exists():
-        return []
+    censored_cmd = gpg_cmd.copy()
+    censored_cmd[censored_cmd.index("--passphrase") + 1] = "***"
+    print_dim(f"$ {' '.join(censored_cmd)}")
 
     try:
-        data = json.loads(path.read_text())
-        return [BackupFailure(**f) for f in data]
-    except (json.JSONDecodeError, OSError):
-        return []
+        run_command(gpg_cmd, capture_output=True, silent=True)
+    except Exception as e:
+        raise BackupError(f"Failed to decrypt backup: {e}") from e
 
+    target_dir.mkdir(parents=True, exist_ok=True)
+    try:
+        run_command(
+            ["tar", "-xzf", str(decrypted_path), "-C", str(target_dir)], capture_output=True
+        )
+    except Exception as e:
+        raise BackupError(f"Failed to extract backup: {e}") from e
 
-def record_backup_failure(backup_type: str, error: str) -> None:
-    """Record a backup failure for tracking.
-
-    Args:
-        backup_type: Type of backup that failed.
-        error: Error message.
-    """
-    failures = load_failures()
-
-    failure = BackupFailure(
-        timestamp=datetime.now(UTC).isoformat(),
-        backup_type=backup_type,
-        error=error,
-        notified=False,
-    )
-    failures.append(failure)
-
-    # Keep last 100 failures
-    failures = failures[-100:]
-
-    path = get_failure_log_path()
-    path.write_text(json.dumps([f.__dict__ for f in failures], indent=2))
-
-    print_error(f"Backup failed: {error}")
-
-
-def get_recent_failures(limit: int = 10) -> list[BackupFailure]:
-    """Get recent backup failures for display.
-
-    Args:
-        limit: Maximum number of failures to return.
-
-    Returns:
-        List of recent failures.
-    """
-    failures = load_failures()
-    return failures[-limit:]
-
-
-def format_bytes(num_bytes: int) -> str:
-    """Format bytes as human-readable string."""
-    for unit in ["B", "KB", "MB", "GB", "TB"]:
-        if abs(num_bytes) < 1024.0:
-            return f"{num_bytes:.1f} {unit}"
-        num_bytes = int(num_bytes / 1024.0)
-    return f"{num_bytes:.1f} PB"
+    decrypted_path.unlink()

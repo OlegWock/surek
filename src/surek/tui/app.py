@@ -69,7 +69,6 @@ class SurekApp(App[None]):
     ]
 
     def compose(self) -> ComposeResult:
-        """Compose the application layout."""
         yield TopBar("Surek")
         with TabbedContent():
             with TabPane("Stacks", id="stacks-tab"):
@@ -79,11 +78,9 @@ class SurekApp(App[None]):
         yield Footer()
 
     def on_mount(self) -> None:
-        """Focus the stacks table on startup."""
         self.query_one("#stacks-table", DataTable).focus()
 
     def action_refresh(self) -> None:
-        """Refresh all data."""
         stacks_pane = self.query_one("#stacks-pane", StacksPane)
         stacks_pane.refresh_data()
 
@@ -93,7 +90,6 @@ class SurekApp(App[None]):
         self.notify("Data refreshed")
 
     def action_help(self) -> None:
-        """Show help."""
         self.notify(
             "Keyboard shortcuts:\n"
             "  r - Refresh data\n"
@@ -107,6 +103,5 @@ class SurekApp(App[None]):
 
 
 def run_tui() -> None:
-    """Run the TUI application."""
     app = SurekApp()
     app.run()
