@@ -74,7 +74,7 @@ def deploy(
         ..., help="Name of the stack to deploy (use 'system' for system containers)",
         autocompletion=_complete_stack_name,
     ),
-    force: bool = typer.Option(False, "--force", help="Force re-download even if cached"),
+    pull: bool = typer.Option(False, "--pull", help="Force re-pull sources and Docker images"),
 ) -> None:
     """Deploy a stack (pull sources, transform compose, start containers)."""
     try:
@@ -95,7 +95,7 @@ def deploy(
             _ensure_system_running()
             stack = get_stack_by_name(stack_name)
             console.print(f"Loaded stack config from {stack.path}")
-            deploy_stack(stack, surek_config, force=force)
+            deploy_stack(stack, surek_config, pull=pull)
     except SurekError as e:
         console.print(f"[red]Error:[/red] {e}")
         raise typer.Exit(1) from None

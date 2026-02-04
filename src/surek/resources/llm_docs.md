@@ -57,6 +57,7 @@ surek
 |---------|-------------|
 | `surek` | Launch interactive TUI |
 | `surek deploy <stack>` | Deploy a stack (pull sources, transform compose, start) |
+| `surek deploy <stack> --pull` | Deploy and force re-pull sources and Docker images |
 | `surek start <stack>` | Start an already deployed stack |
 | `surek stop <stack>` | Stop a running stack |
 | `surek status` | Show status of all stacks with health |
@@ -263,7 +264,7 @@ When you run `surek deploy <stack>`:
    - Adds Caddy labels for reverse proxy
    - Injects environment variables
    - Hashes passwords for basic auth
-4. **Container Startup**: Runs `docker compose up -d --build`
+4. **Container Startup**: Runs `docker compose up -d --build` (with `--pull always` if `--pull` flag is used)
 
 ## TUI Keyboard Shortcuts
 

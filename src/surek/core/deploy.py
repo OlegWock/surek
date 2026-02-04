@@ -27,7 +27,7 @@ from surek.utils.paths import get_stack_project_dir, get_system_dir
 def deploy_stack(
     stack: StackInfo,
     surek_config: SurekConfig,
-    force: bool = False,
+    pull: bool = False,
 ) -> None:
     """Deploy a stack.
 
@@ -40,7 +40,7 @@ def deploy_stack(
     Args:
         stack: The stack to deploy.
         surek_config: The main Surek configuration.
-        force: If True, force re-download even if cached.
+        pull: If True, force re-pull sources and Docker images.
 
     Raises:
         SurekError: If deployment fails.
@@ -61,7 +61,7 @@ def deploy_stack(
 
     # Handle GitHub source
     if isinstance(config.source, GitHubSource):
-        _handle_github_source(config, project_dir, surek_config, force)
+        _handle_github_source(config, project_dir, surek_config, pull)
 
     # Copy local files (overwrite GitHub files if present)
     _copy_folder_recursive(source_dir, project_dir)
@@ -87,7 +87,7 @@ def deploy_stack(
     print_dim(f"Saved patched compose file at {patched_path}")
 
     # Start containers
-    start_stack(config)
+    start_stack(config, pull=pull)
 
 
 def deploy_system_stack(surek_config: SurekConfig) -> None:
@@ -154,11 +154,12 @@ def deploy_system_stack(surek_config: SurekConfig) -> None:
     start_stack(system_config)
 
 
-def start_stack(config: StackConfig) -> None:
+def start_stack(config: StackConfig, pull: bool = False) -> None:
     """Start a deployed stack.
 
     Args:
         config: The stack configuration.
+        pull: If True, force re-pull Docker images before starting.
 
     Raises:
         SurekError: If start fails.
@@ -170,11 +171,14 @@ def start_stack(config: StackConfig) -> None:
         raise SurekError(f"Couldn't find compose file for stack '{config.name}'. Deploy it first.")
 
     console.print("Starting containers...")
+    args = ["-d", "--build"]
+    if pull:
+        args.extend(["--pull", "always"])
     run_docker_compose(
         compose_file=patched_path,
         project_dir=project_dir,
         command="up",
-        args=["-d", "--build"],
+        args=args,
     )
     print_success("Containers started")
 
@@ -215,24 +219,24 @@ def _handle_github_source(
     config: StackConfig,
     project_dir: Path,
     surek_config: SurekConfig,
-    force: bool,
+    pull: bool,
 ) -> None:
     """Handle GitHub source for a stack.
 
-    Downloads from GitHub if not cached or force is True.
+    Downloads from GitHub if not cached or pull is True.
 
     Args:
         config: The stack configuration.
         project_dir: The project directory to extract into.
         surek_config: The main Surek configuration.
-        force: If True, force re-download.
+        pull: If True, force re-download.
     """
     if not isinstance(config.source, GitHubSource):
         return
 
     source = config.source
 
-    if not force:
+    if not pull:
         # Check if we can use cached version
         cached_commit = get_cached_commit(config.name)
         if cached_commit:

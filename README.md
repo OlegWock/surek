@@ -125,6 +125,7 @@ backup:
 | `surek new` | Create a new stack interactively |
 | `surek schema` | Generate JSON schemas for editor autocompletion |
 | `surek deploy <stack>` | Deploy a stack (use `system` for system containers) |
+| `surek deploy <stack> --pull` | Deploy and force re-pull sources and Docker images |
 | `surek start <stack>` | Start an already deployed stack |
 | `surek stop <stack>` | Stop a running stack |
 | `surek status` | Show status of all stacks |
