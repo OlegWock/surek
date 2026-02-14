@@ -1,0 +1,177 @@
+{
+  "$defs": {
+    "BackupConfig": {
+      "description": "S3 backup configuration.",
+      "properties": {
+        "password": {
+          "title": "Password",
+          "type": "string"
+        },
+        "s3_endpoint": {
+          "title": "S3 Endpoint",
+          "type": "string"
+        },
+        "s3_bucket": {
+          "title": "S3 Bucket",
+          "type": "string"
+        },
+        "s3_access_key": {
+          "title": "S3 Access Key",
+          "type": "string"
+        },
+        "s3_secret_key": {
+          "title": "S3 Secret Key",
+          "type": "string"
+        }
+      },
+      "required": [
+        "password",
+        "s3_endpoint",
+        "s3_bucket",
+        "s3_access_key",
+        "s3_secret_key"
+      ],
+      "title": "BackupConfig",
+      "type": "object"
+    },
+    "GitHubConfig": {
+      "description": "GitHub authentication configuration.",
+      "properties": {
+        "pat": {
+          "title": "Pat",
+          "type": "string"
+        }
+      },
+      "required": [
+        "pat"
+      ],
+      "title": "GitHubConfig",
+      "type": "object"
+    },
+    "NotificationConfig": {
+      "description": "Notification settings for backup failures.\n\nNOTE: In v2.0, notifications are tracked but not sent. The configuration\nis accepted for forward compatibility. Actual notification delivery\n(webhook, email, Telegram) will be implemented in a future release.",
+      "properties": {
+        "webhook_url": {
+          "anyOf": [
+            {
+              "type": "string"
+            },
+            {
+              "type": "null"
+            }
+          ],
+          "default": null,
+          "title": "Webhook Url"
+        },
+        "email": {
+          "anyOf": [
+            {
+              "type": "string"
+            },
+            {
+              "type": "null"
+            }
+          ],
+          "default": null,
+          "title": "Email"
+        },
+        "telegram_chat_id": {
+          "anyOf": [
+            {
+              "type": "string"
+            },
+            {
+              "type": "null"
+            }
+          ],
+          "default": null,
+          "title": "Telegram Chat Id"
+        }
+      },
+      "title": "NotificationConfig",
+      "type": "object"
+    },
+    "SystemServicesConfig": {
+      "description": "Control which system services are enabled.",
+      "properties": {
+        "portainer": {
+          "default": true,
+          "title": "Portainer",
+          "type": "boolean"
+        },
+        "netdata": {
+          "default": true,
+          "title": "Netdata",
+          "type": "boolean"
+        }
+      },
+      "title": "SystemServicesConfig",
+      "type": "object"
+    }
+  },
+  "additionalProperties": false,
+  "description": "Main Surek configuration from surek.yml.",
+  "properties": {
+    "root_domain": {
+      "title": "Root Domain",
+      "type": "string"
+    },
+    "default_auth": {
+      "description": "Format: 'user:password'",
+      "title": "Default Auth",
+      "type": "string"
+    },
+    "backup": {
+      "anyOf": [
+        {
+          "$ref": "#/$defs/BackupConfig"
+        },
+        {
+          "type": "null"
+        }
+      ],
+      "default": null
+    },
+    "github": {
+      "anyOf": [
+        {
+          "$ref": "#/$defs/GitHubConfig"
+        },
+        {
+          "type": "null"
+        }
+      ],
+      "default": null
+    },
+    "notifications": {
+      "anyOf": [
+        {
+          "$ref": "#/$defs/NotificationConfig"
+        },
+        {
+          "type": "null"
+        }
+      ],
+      "default": null
+    },
+    "system_services": {
+      "$ref": "#/$defs/SystemServicesConfig"
+    },
+    "default_user": {
+      "default": "",
+      "title": "Default User",
+      "type": "string"
+    },
+    "default_password": {
+      "default": "",
+      "title": "Default Password",
+      "type": "string"
+    }
+  },
+  "required": [
+    "root_domain",
+    "default_auth"
+  ],
+  "title": "SurekConfig",
+  "type": "object"
+}
