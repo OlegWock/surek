@@ -205,6 +205,24 @@ backup:
 | `--help-llm` | Print this complete documentation |
 | `--help-readme` | Print README documentation |
 | `--help` | Show command help |
+| `--install-completion` | Install shell completion for bash/zsh/fish/powershell |
+| `--show-completion` | Show completion script for current shell |
+
+### Shell Completion
+
+Enable tab completion for stack names and commands:
+
+```bash
+# Install completion for your shell
+surek --install-completion
+
+# Restart your shell for changes to take place
+```
+
+After installation, pressing Tab will autocomplete:
+- Command names (`surek dep<Tab>` → `surek deploy`)
+- Stack names (`surek deploy my<Tab>` → `surek deploy my-app`)
+- Options (`surek status --<Tab>` → shows available options)
 
 ### Project Initialization
 

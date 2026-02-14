@@ -16,6 +16,16 @@ It manages Caddy reverse proxy for your containers with automatic HTTPS, backs u
 
 Surek requires Python 3.12+, Docker with Compose plugin, and a domain pointed to your server.
 
+If you have Surek v1 installed, remove it first:
+
+```bash
+npm uninstall -g surek
+# or
+sudo uninstall -g surek
+```
+
+Then install v2:
+
 ```bash
 # Using uv (recommended)
 uv tool install surek
@@ -25,6 +35,16 @@ pip install surek
 ```
 
 If your Docker requires `sudo`, install and run Surek with `sudo` as well.
+
+### Shell Completion
+
+Enable tab completion for commands and stack names:
+
+```bash
+surek --install-completion
+```
+
+Restart your shell after installation.
 
 ## Concepts
 
@@ -248,3 +268,29 @@ For AI assistants, run `surek --help-llm` to get complete documentation.
 ## Backward Compatibility
 
 Surek v2 is fully backward compatible with v1 configuration files. All existing `surek.yml` and `surek.stack.yml` files work without modification. Source code for v1 can be found in `v1` branch.
+
+## Development
+
+```bash
+# Install dependencies
+uv sync
+
+# Run from source
+uv run surek
+
+# Install local copy as a tool
+uv tool install -e .
+
+# Type checking
+uv run mypy src/surek
+
+# Linting
+uv run ruff check src/surek
+```
+
+### Publishing to PyPI
+
+```bash
+uv build
+uv publish
+```
